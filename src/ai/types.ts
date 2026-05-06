@@ -37,7 +37,9 @@ export const adasChatRequestSchema = z.object({
 export const adasChatResponseSchema = z.object({
   answer: z.string(),
   metadata: z.object({
-    mode: z.enum(["fallback", "ai"])
+    mode: z.enum(["fallback", "ai"]),
+    provider: z.enum(["gemini", "openai", "deterministic"]),
+    model: z.string().optional()
   })
 });
 

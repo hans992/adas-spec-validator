@@ -78,7 +78,23 @@ If evidence is insufficient, the assistant must respond with:
 `I cannot determine that from the available model evidence.`
 
 No API key is required for local use: fallback mode is deterministic.  
-Set `OPENAI_API_KEY` to enable AI mode.
+Set provider keys to enable AI mode.
+
+## AI Provider Configuration
+
+ADAS Chat works without any AI key using deterministic fallback mode.
+
+- **Gemini:** set `GOOGLE_GENERATIVE_AI_API_KEY`
+- **Gemini model override (optional):** set `GOOGLE_GENERATION_MODEL` (default: `gemini-2.5-flash`)
+- **OpenAI:** set `OPENAI_API_KEY`
+
+Provider priority:
+
+1. `GOOGLE_GENERATIVE_AI_API_KEY` (Gemini)
+2. `OPENAI_API_KEY` (OpenAI)
+3. deterministic fallback
+
+AI responses remain evidence-constrained and do not override deterministic validation results.
 
 ## Known Limitations
 
