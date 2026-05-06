@@ -1,9 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Brain } from "lucide-react";
 import type { NormalizedModel, ValidationResult } from "@/domain/types";
 import type { AdasRole } from "@/ai/types";
 import ReactMarkdown from "react-markdown";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const roleOptions: AdasRole[] = ["Design Engineer", "Stockroom Personnel", "Project Manager"];
 
@@ -79,57 +84,63 @@ export function AdasChatPanel({ normalizedModel, validationResults }: AdasChatPa
   }
 
   return (
-    <article className="rounded-xl border border-slate-200 bg-white/95 p-5 shadow-sm shadow-slate-200/60">
-      <div className="mb-4">
+    <Card>
+      <CardHeader className="pb-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Assistant Module</p>
-        <h2 className="mt-1 text-lg font-semibold text-slate-900">ADAS Chat</h2>
-      </div>
-      <p className="mb-4 text-xs text-slate-600">
-        Answers are constrained to model facts and deterministic validation evidence.
-      </p>
+        <CardTitle className="mt-1 flex items-center gap-2 text-lg">
+          <Brain className="h-4 w-4 text-slate-500" />
+          ADAS Chat
+        </CardTitle>
+        <p className="text-xs text-slate-600 dark:text-slate-300">
+          Answers are constrained to model facts and deterministic validation evidence.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-4">
 
-      <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900">
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-700">Role</p>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           {roleOptions.map((role) => {
             const isActive = selectedRole === role;
             return (
-              <button
+              <Button
                 key={role}
-                type="button"
                 onClick={() => setSelectedRole(role)}
-                className={`rounded-md border px-3 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 ${
+                variant={isActive ? "default" : "outline"}
+                size="sm"
+                className={`h-9 ${
                   isActive
                     ? "border-slate-800 bg-slate-900 font-medium text-white shadow-sm"
-                    : "border-slate-300 bg-white text-slate-800 hover:bg-slate-100"
+                    : ""
                 }`}
               >
                 {role}
-              </button>
+              </Button>
             );
           })}
         </div>
       </div>
 
-      <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900">
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-700">
           Sample Questions
         </p>
         <div className="flex flex-wrap gap-2">
           {exampleQuestions.map((example) => (
-            <button
+            <Button
               key={example}
-              type="button"
-              className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
+              variant="outline"
+              size="sm"
+              className="h-auto px-2.5 py-1.5 text-xs"
               onClick={() => setQuestion(example)}
             >
               {example}
-            </button>
+            </Button>
           ))}
         </div>
       </div>
 
-      <div className="mb-3">
+      <div>
         <label htmlFor="question-input" className="mb-1 block text-xs font-semibold uppercase text-slate-700">
           Question
         </label>
@@ -138,52 +149,49 @@ export function AdasChatPanel({ normalizedModel, validationResults }: AdasChatPa
           value={question}
           onChange={(event) => setQuestion(event.target.value)}
           rows={3}
-          className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
+          className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-slate-500 dark:focus:ring-slate-800"
         />
       </div>
 
-      <button
-        type="button"
-        onClick={submitQuestion}
-        disabled={disabled}
-        className="rounded-md border border-slate-800 bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
-      >
+      <Button onClick={submitQuestion} disabled={disabled} className="w-full sm:w-auto">
         {isSubmitting ? "Answering..." : "Ask ADAS Chat"}
-      </button>
+      </Button>
 
       {error.length > 0 ? (
-        <p className="mt-3 rounded border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</p>
+        <Alert variant="destructive">{error}</Alert>
       ) : null}
 
       {answer.length > 0 ? (
-        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">Answer</p>
             <div className="flex flex-wrap gap-1.5">
-              <span className="rounded border border-slate-300 bg-white px-2 py-0.5 text-xs font-medium text-slate-700">
+              <Badge variant="outline" className="rounded border px-2 py-0.5 text-xs font-medium">
                 mode: {mode}
-              </span>
-              <span className="rounded border border-slate-300 bg-white px-2 py-0.5 text-xs font-medium text-slate-700">
+              </Badge>
+              <Badge variant="outline" className="rounded border px-2 py-0.5 text-xs font-medium">
                 provider: {provider}
-              </span>
+              </Badge>
               {model.length > 0 ? (
-                <span className="rounded border border-slate-300 bg-white px-2 py-0.5 text-xs font-medium text-slate-700">
+                <Badge variant="outline" className="rounded border px-2 py-0.5 text-xs font-medium">
                   model: {model}
-                </span>
+                </Badge>
               ) : null}
             </div>
           </div>
-          <div className="rounded border border-slate-200 bg-white p-3">
-            <div className="space-y-3 text-sm leading-relaxed text-slate-800">
+          <div className="rounded border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950">
+            <div className="space-y-3 text-sm leading-relaxed text-slate-800 dark:text-slate-200">
               <ReactMarkdown
                 components={{
                   p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
                   ul: ({ children }) => <ul className="mb-2 list-disc space-y-1 pl-5">{children}</ul>,
                   ol: ({ children }) => <ol className="mb-2 list-decimal space-y-1 pl-5">{children}</ol>,
                   li: ({ children }) => <li>{children}</li>,
-                  strong: ({ children }) => <strong className="font-semibold text-slate-900">{children}</strong>,
+                  strong: ({ children }) => (
+                    <strong className="font-semibold text-slate-900 dark:text-slate-100">{children}</strong>
+                  ),
                   code: ({ children }) => (
-                    <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs text-slate-900">
+                    <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs text-slate-900 dark:bg-slate-800 dark:text-slate-100">
                       {children}
                     </code>
                   )
@@ -195,6 +203,7 @@ export function AdasChatPanel({ normalizedModel, validationResults }: AdasChatPa
           </div>
         </div>
       ) : null}
-    </article>
+      </CardContent>
+    </Card>
   );
 }

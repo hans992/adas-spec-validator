@@ -11,7 +11,10 @@ The repository includes a C# extractor prototype boundary and does **not** claim
 - Evidence-backed validation results
 - Explicit `pass` / `fail` / `unknown` status handling
 - Role-aware ADAS chat constrained to validation evidence
-- Anti-hallucination prompt design and fallback mode
+- Gemini/OpenAI/fallback provider support with deterministic priority
+- Dark mode support for dashboard readability
+- Interactive drag-and-drop upload for normalized JSON model/requirements
+- Anti-hallucination prompt design and deterministic fallback mode
 - C#/.NET extractor prototype boundary for Revit/AutoCAD workflows
 - Vitest coverage for rule engine and AI prompt/fallback behavior
 
@@ -95,6 +98,26 @@ Provider priority:
 3. deterministic fallback
 
 AI responses remain evidence-constrained and do not override deterministic validation results.
+
+## Interactive JSON Upload
+
+The dashboard includes a **Data Source** module for uploading normalized JSON files:
+
+- Upload normalized **model JSON** (`levels`, `rooms`, `doors`)
+- Upload **requirements JSON** (deterministic requirement array)
+- Files are parsed and validated client-side with Zod before use
+- Invalid uploads show clear errors and do not replace current data
+- "Reset to sample data" restores original demo inputs
+
+Privacy and architecture notes:
+
+- Uploaded files are **not** sent to a backend
+- Uploaded files are **not** persisted in a database
+- Validation reruns locally against currently loaded normalized JSON
+- ADAS Chat answers are based on the currently loaded model and deterministic validation evidence
+
+This upload feature supports **normalized JSON only**.  
+It does not claim Revit, AutoCAD, or IFC file ingestion.
 
 ## Known Limitations
 

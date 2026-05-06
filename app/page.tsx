@@ -1,52 +1,77 @@
-import { sampleModelData, sampleRequirements } from "@/domain/sampleData";
-import { validateWithDeterministicRules } from "@/domain/validationPipeline";
-import type { ValidationStatus } from "@/domain/types";
+"use client";
+
+import { useCallback, useMemo, useState } from "react";
+import { useDropzone } from "react-dropzone";
+import {
+  AlertTriangle,
+  Brain,
+  CheckCircle2,
+  Database,
+  FileJson,
+  ShieldCheck,
+  Sparkles,
+  UploadCloud,
+  Workflow
+} from "lucide-react";
 import { AdasChatPanel } from "@/components/AdasChatPanel";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { sampleModelData, sampleRequirements } from "@/domain/sampleData";
+import {
+  parseUploadedJson,
+  validateUploadedModel,
+  validateUploadedRequirements
+} from "@/domain/uploadHelpers";
+import { validateWithDeterministicRules } from "@/domain/validationPipeline";
+import type { NormalizedModel, Requirement, ValidationSeverity, ValidationStatus } from "@/domain/types";
 
-function statusClass(status: ValidationStatus): string {
+type DataSourceStatus = "sample" | "uploaded";
+
+function statusBackgroundClass(status: ValidationStatus): string {
   switch (status) {
     case "pass":
-      return "border-emerald-200 bg-emerald-50/60 text-slate-900";
+      return "border-emerald-200 bg-emerald-50/50 dark:border-emerald-900 dark:bg-emerald-950/20";
     case "fail":
-      return "border-rose-200 bg-rose-50/60 text-slate-900";
+      return "border-rose-200 bg-rose-50/50 dark:border-rose-900 dark:bg-rose-950/20";
     case "unknown":
-      return "border-amber-200 bg-amber-50/60 text-slate-900";
+      return "border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20";
     default:
-      return "border-slate-200 bg-slate-50/70 text-slate-900";
+      return "border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900";
   }
 }
 
-function statusBadgeClass(status: ValidationStatus): string {
-  switch (status) {
-    case "pass":
-      return "border-emerald-300 bg-emerald-100 text-emerald-900";
-    case "fail":
-      return "border-rose-300 bg-rose-100 text-rose-900";
-    case "unknown":
-      return "border-amber-300 bg-amber-100 text-amber-900";
-    default:
-      return "border-slate-300 bg-slate-100 text-slate-900";
-  }
+function statusBadgeVariant(status: ValidationStatus): "success" | "warning" | "destructive" | "default" {
+  if (status === "pass") return "success";
+  if (status === "fail") return "destructive";
+  if (status === "unknown") return "warning";
+  return "default";
 }
 
-function severityBadgeClass(severity: "info" | "warning" | "critical"): string {
-  switch (severity) {
-    case "critical":
-      return "border-rose-300 bg-rose-100 text-rose-900";
-    case "warning":
-      return "border-amber-300 bg-amber-100 text-amber-900";
-    case "info":
-      return "border-sky-300 bg-sky-100 text-sky-900";
-    default:
-      return "border-slate-300 bg-slate-100 text-slate-900";
-  }
+function severityBadgeVariant(severity: ValidationSeverity): "warning" | "destructive" | "default" {
+  if (severity === "critical") return "destructive";
+  if (severity === "warning") return "warning";
+  return "default";
 }
 
 export default function Home() {
-  const { model, requirements, results } = validateWithDeterministicRules(
-    sampleModelData,
-    sampleRequirements
+  const [modelData, setModelData] = useState<NormalizedModel>(sampleModelData);
+  const [requirementsData, setRequirementsData] = useState<Requirement[]>(sampleRequirements);
+  const [modelSource, setModelSource] = useState<DataSourceStatus>("sample");
+  const [requirementsSource, setRequirementsSource] = useState<DataSourceStatus>("sample");
+  const [modelError, setModelError] = useState("");
+  const [requirementsError, setRequirementsError] = useState("");
+  const [modelFilename, setModelFilename] = useState("");
+  const [requirementsFilename, setRequirementsFilename] = useState("");
+
+  const { model, requirements, results } = useMemo(
+    () => validateWithDeterministicRules(modelData, requirementsData),
+    [modelData, requirementsData]
   );
+
   const passCount = results.filter((result) => result.status === "pass").length;
   const failCount = results.filter((result) => result.status === "fail").length;
   const unknownCount = results.filter((result) => result.status === "unknown").length;
@@ -54,202 +79,416 @@ export default function Home() {
     (result) => result.status === "fail" && result.severity === "critical"
   ).length;
 
+  const dataSourceLabel =
+    modelSource === "sample" && requirementsSource === "sample"
+      ? "Sample data"
+      : modelSource === "uploaded" && requirementsSource === "sample"
+        ? "Uploaded model"
+        : modelSource === "sample" && requirementsSource === "uploaded"
+          ? "Uploaded requirements"
+          : "Uploaded model + requirements";
+
+  const handleModelFile = useCallback(async (file: File) => {
+    const rawText = await file.text();
+    const parseResult = parseUploadedJson(rawText);
+    if (!parseResult.success) {
+      setModelError(parseResult.error);
+      return;
+    }
+
+    const validationResult = validateUploadedModel(parseResult.data);
+    if (!validationResult.success) {
+      setModelError(validationResult.error);
+      return;
+    }
+
+    setModelData(validationResult.data);
+    setModelSource("uploaded");
+    setModelFilename(file.name);
+    setModelError("");
+  }, []);
+
+  const handleRequirementsFile = useCallback(async (file: File) => {
+    const rawText = await file.text();
+    const parseResult = parseUploadedJson(rawText);
+    if (!parseResult.success) {
+      setRequirementsError(parseResult.error);
+      return;
+    }
+
+    const validationResult = validateUploadedRequirements(parseResult.data);
+    if (!validationResult.success) {
+      setRequirementsError(validationResult.error);
+      return;
+    }
+
+    setRequirementsData(validationResult.data);
+    setRequirementsSource("uploaded");
+    setRequirementsFilename(file.name);
+    setRequirementsError("");
+  }, []);
+
+  const modelDropzone = useDropzone({
+    accept: { "application/json": [".json"] },
+    maxFiles: 1,
+    multiple: false,
+    onDrop: (acceptedFiles) => {
+      const file = acceptedFiles[0];
+      if (file !== undefined) {
+        void handleModelFile(file);
+      }
+    }
+  });
+
+  const requirementsDropzone = useDropzone({
+    accept: { "application/json": [".json"] },
+    maxFiles: 1,
+    multiple: false,
+    onDrop: (acceptedFiles) => {
+      const file = acceptedFiles[0];
+      if (file !== undefined) {
+        void handleRequirementsFile(file);
+      }
+    }
+  });
+
+  function resetToSampleData() {
+    setModelData(sampleModelData);
+    setRequirementsData(sampleRequirements);
+    setModelSource("sample");
+    setRequirementsSource("sample");
+    setModelError("");
+    setRequirementsError("");
+    setModelFilename("");
+    setRequirementsFilename("");
+  }
+
   return (
     <main className="min-h-screen px-4 py-7 sm:px-6 sm:py-9 lg:px-8">
       <div className="mx-auto max-w-[1400px] space-y-5">
-        <header className="rounded-xl border border-slate-200 bg-white/95 p-6 shadow-sm shadow-slate-200/60 backdrop-blur-sm">
-          <p className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600">
-            AI Design Automation Prototype
-          </p>
-          <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950 sm:text-[2rem]">
-            ADAS Spec Validator
-          </h1>
-          <p className="mt-1 text-sm text-slate-600 sm:text-base">
-            Deterministic AI validation for CAD/BIM model requirements
-          </p>
-          <p className="mt-3 border-l-2 border-slate-400 pl-3 text-sm font-medium text-slate-700 sm:text-[0.95rem]">
-            Rules validate first. AI explains second.
-          </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <span className="rounded-full border border-slate-300 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700">
-              C# Extractor Boundary
-            </span>
-            <span className="rounded-full border border-slate-300 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700">
+        <Card className="backdrop-blur-sm">
+          <CardHeader className="space-y-3 pb-3">
+            <div className="flex items-start justify-between gap-3">
+              <Badge variant="outline" className="uppercase tracking-wide">
+                AI Design Automation Prototype
+              </Badge>
+              <ThemeToggle />
+            </div>
+            <CardTitle className="text-3xl font-semibold tracking-tight text-slate-950 dark:text-slate-100">
+              ADAS Spec Validator
+            </CardTitle>
+            <CardDescription className="text-sm sm:text-base">
+              Deterministic AI validation for CAD/BIM model requirements
+            </CardDescription>
+            <p className="border-l-2 border-slate-400 pl-3 text-sm font-medium text-slate-700 dark:text-slate-200">
+              Rules validate first. AI explains second.
+            </p>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2 pb-5">
+            <Badge variant="outline">C# Extractor Boundary</Badge>
+            <Badge variant="outline">
+              <ShieldCheck className="mr-1 h-3.5 w-3.5" />
               Deterministic Rules
-            </span>
-            <span className="rounded-full border border-slate-300 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700">
+            </Badge>
+            <Badge variant="outline">
+              <Brain className="mr-1 h-3.5 w-3.5" />
               Evidence-Constrained AI
-            </span>
-          </div>
-        </header>
+            </Badge>
+          </CardContent>
+        </Card>
 
-        <section className="rounded-xl border border-slate-200 bg-white/90 p-3 shadow-sm shadow-slate-200/50">
-          <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-700 sm:text-sm">
-            <span className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5">Model Data</span>
-            <span className="text-slate-400">→</span>
-            <span className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5">Rule Engine</span>
-            <span className="text-slate-400">→</span>
-            <span className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5">Evidence</span>
-            <span className="text-slate-400">→</span>
-            <span className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5">AI Explanation</span>
-          </div>
-        </section>
+        <Card>
+          <CardContent className="flex flex-wrap items-center gap-2 p-3 text-xs font-medium sm:text-sm">
+            <Badge variant="outline">
+              <Database className="mr-1 h-3.5 w-3.5" />
+              Model Data
+            </Badge>
+            <Workflow className="h-3.5 w-3.5 text-slate-400" />
+            <Badge variant="outline">Rule Engine</Badge>
+            <Workflow className="h-3.5 w-3.5 text-slate-400" />
+            <Badge variant="outline">Evidence</Badge>
+            <Workflow className="h-3.5 w-3.5 text-slate-400" />
+            <Badge variant="outline">
+              <Sparkles className="mr-1 h-3.5 w-3.5" />
+              AI Explanation
+            </Badge>
+          </CardContent>
+        </Card>
 
         <section className="grid gap-5 lg:grid-cols-2">
-          <article className="rounded-xl border border-slate-200 bg-white/95 p-5 shadow-sm shadow-slate-200/60">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">System Context</p>
-            <h2 className="mt-1 text-lg font-semibold text-slate-900">Why this matters</h2>
-            <ul className="mt-3 list-disc space-y-2.5 pl-5 text-sm text-slate-700">
-              <li>CAD/BIM model facts are validated deterministically before AI is used.</li>
-              <li>Missing model data stays unknown rather than guessed.</li>
-              <li>ADAS Chat is constrained to validation evidence and model facts.</li>
-              <li>The C# extractor prototype shows the Revit/AutoCAD integration boundary.</li>
-            </ul>
-          </article>
+          <Card>
+            <CardHeader className="pb-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">System Context</p>
+              <CardTitle>Why this matters</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ul className="list-disc space-y-2.5 pl-5 text-sm text-slate-700 dark:text-slate-300">
+                <li>CAD/BIM model facts are validated deterministically before AI is used.</li>
+                <li>Missing model data stays unknown rather than guessed.</li>
+                <li>ADAS Chat is constrained to validation evidence and model facts.</li>
+                <li>The C# extractor prototype shows the Revit/AutoCAD integration boundary.</li>
+              </ul>
+            </CardContent>
+          </Card>
 
-          <article className="rounded-xl border border-slate-200 bg-white/95 p-5 shadow-sm shadow-slate-200/60">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Governance</p>
-            <h2 className="mt-1 text-lg font-semibold text-slate-900">Source of Truth</h2>
-            <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-              <p className="font-medium">Revit/AutoCAD Extractor Prototype</p>
-              <p className="text-slate-400">↓</p>
-              <p className="font-medium">Normalized Model Data</p>
-              <p className="text-slate-400">↓</p>
-              <p className="font-medium">Deterministic Rule Engine</p>
-              <p className="text-slate-400">↓</p>
-              <p className="font-medium">Evidence Store</p>
-              <p className="text-slate-400">↓</p>
-              <p className="font-medium">Role-Aware ADAS Chat</p>
-            </div>
-            <p className="mt-3 rounded-md border border-slate-300 bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-900">
-              The LLM is not the source of truth.
-            </p>
-          </article>
+          <Card>
+            <CardHeader className="pb-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Governance</p>
+              <CardTitle>Source of Truth</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+                <p className="font-medium">Revit/AutoCAD Extractor Prototype</p>
+                <p className="text-slate-400">↓</p>
+                <p className="font-medium">Normalized Model Data</p>
+                <p className="text-slate-400">↓</p>
+                <p className="font-medium">Deterministic Rule Engine</p>
+                <p className="text-slate-400">↓</p>
+                <p className="font-medium">Evidence Store</p>
+                <p className="text-slate-400">↓</p>
+                <p className="font-medium">Role-Aware ADAS Chat</p>
+              </div>
+              <Alert className="font-semibold">The LLM is not the source of truth.</Alert>
+            </CardContent>
+          </Card>
         </section>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <CardTitle className="text-base">Data Source</CardTitle>
+                <CardDescription className="mt-1 text-xs">
+                  Upload normalized JSON only. Files are parsed and validated client-side.
+                </CardDescription>
+              </div>
+              <Button variant="secondary" size="sm" onClick={resetToSampleData}>
+                Reset to sample data
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 text-xs md:grid-cols-4">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-800 dark:bg-slate-900">
+                <p className="text-slate-500">Current source</p>
+                <p className="mt-1 font-semibold text-slate-900 dark:text-slate-100">{dataSourceLabel}</p>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-800 dark:bg-slate-900">
+                <p className="text-slate-500">Model</p>
+                <p className="mt-1 font-semibold text-slate-900 dark:text-slate-100">
+                  {model.rooms.length} rooms / {model.doors.length} doors / {model.levels.length} levels
+                </p>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-800 dark:bg-slate-900">
+                <p className="text-slate-500">Requirements</p>
+                <p className="mt-1 font-semibold text-slate-900 dark:text-slate-100">{requirements.length}</p>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-800 dark:bg-slate-900">
+                <p className="text-slate-500">Validation</p>
+                <p className="mt-1 font-semibold text-slate-900 dark:text-slate-100">
+                  {passCount} pass / {failCount} fail / {unknownCount} unknown
+                </p>
+              </div>
+            </div>
+
+            <Separator />
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <div
+                {...modelDropzone.getRootProps()}
+                className="cursor-pointer rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 transition hover:border-slate-400 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
+              >
+                <input {...modelDropzone.getInputProps()} />
+                <div className="flex items-start gap-3">
+                  <UploadCloud className="mt-0.5 h-4 w-4 text-slate-500" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100">Upload Model JSON</p>
+                    <p className="text-xs text-slate-600 dark:text-slate-300">
+                      Accepts normalized model format (`levels`, `rooms`, `doors`)
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {modelDropzone.isDragActive
+                        ? "Drop model JSON file here"
+                        : modelFilename.length > 0
+                          ? `Loaded: ${modelFilename}`
+                          : "Drag and drop or click to select"}
+                    </p>
+                  </div>
+                </div>
+                {modelError.length > 0 ? (
+                  <Alert variant="destructive" className="mt-3">
+                    {modelError}
+                  </Alert>
+                ) : null}
+              </div>
+
+              <div
+                {...requirementsDropzone.getRootProps()}
+                className="cursor-pointer rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 transition hover:border-slate-400 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
+              >
+                <input {...requirementsDropzone.getInputProps()} />
+                <div className="flex items-start gap-3">
+                  <FileJson className="mt-0.5 h-4 w-4 text-slate-500" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100">Upload Requirements JSON</p>
+                    <p className="text-xs text-slate-600 dark:text-slate-300">
+                      Accepts requirement array for deterministic rule checks
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {requirementsDropzone.isDragActive
+                        ? "Drop requirements JSON file here"
+                        : requirementsFilename.length > 0
+                          ? `Loaded: ${requirementsFilename}`
+                          : "Drag and drop or click to select"}
+                    </p>
+                  </div>
+                </div>
+                {requirementsError.length > 0 ? (
+                  <Alert variant="destructive" className="mt-3">
+                    {requirementsError}
+                  </Alert>
+                ) : null}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         <div className="grid gap-5 lg:grid-cols-[0.92fr_1.08fr]">
           <section className="space-y-5">
-            <article className="rounded-xl border border-slate-200 bg-white/95 p-4 shadow-sm shadow-slate-200/60">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <h2 className="text-sm font-semibold text-slate-900">Model Data</h2>
-                <span className="rounded border border-slate-700/40 bg-slate-900 px-2 py-1 font-mono text-[11px] text-slate-100">
-                  normalized-model.json
-                </span>
-              </div>
-              <pre className="max-h-52 overflow-auto rounded-lg border border-slate-700/20 bg-slate-950 p-3 font-mono text-[11px] leading-relaxed text-slate-200">
-                {JSON.stringify(model, null, 2)}
-              </pre>
-            </article>
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between gap-2">
+                  <CardTitle className="text-sm">Model Data</CardTitle>
+                  <Badge variant="outline" className="font-mono text-[11px]">
+                    normalized-model.json
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <pre className="max-h-56 overflow-auto rounded-lg border border-slate-700/20 bg-slate-950 p-3 font-mono text-[11px] leading-relaxed text-slate-200">
+                  {JSON.stringify(model, null, 2)}
+                </pre>
+              </CardContent>
+            </Card>
 
-            <article className="rounded-xl border border-slate-200 bg-white/95 p-4 shadow-sm shadow-slate-200/60">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <h2 className="text-sm font-semibold text-slate-900">Requirements</h2>
-                <span className="rounded border border-slate-700/40 bg-slate-900 px-2 py-1 font-mono text-[11px] text-slate-100">
-                  requirements.json
-                </span>
-              </div>
-              <pre className="max-h-52 overflow-auto rounded-lg border border-slate-700/20 bg-slate-950 p-3 font-mono text-[11px] leading-relaxed text-slate-200">
-                {JSON.stringify(requirements, null, 2)}
-              </pre>
-            </article>
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between gap-2">
+                  <CardTitle className="text-sm">Requirements</CardTitle>
+                  <Badge variant="outline" className="font-mono text-[11px]">
+                    requirements.json
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <pre className="max-h-56 overflow-auto rounded-lg border border-slate-700/20 bg-slate-950 p-3 font-mono text-[11px] leading-relaxed text-slate-200">
+                  {JSON.stringify(requirements, null, 2)}
+                </pre>
+              </CardContent>
+            </Card>
           </section>
 
           <section className="space-y-5">
             <AdasChatPanel normalizedModel={model} validationResults={results} />
 
-            <article className="rounded-xl border border-slate-200 bg-white/95 p-5 shadow-sm shadow-slate-200/60">
-              <h2 className="mb-3 text-lg font-semibold text-slate-900">Validation Results</h2>
-              <div className="mb-4 grid grid-cols-2 gap-2 xl:grid-cols-4">
-                <div className="rounded-lg border border-slate-200 bg-white p-2.5 text-xs shadow-sm">
-                  <p className="uppercase tracking-wide text-slate-500">Pass</p>
-                  <p className="text-lg font-semibold text-slate-900">{passCount}</p>
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle>Validation Results</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="mb-4 grid grid-cols-2 gap-2 xl:grid-cols-4">
+                  <div className="rounded-lg border border-slate-200 bg-white p-2.5 text-xs shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                    <p className="uppercase tracking-wide text-slate-500">Pass</p>
+                    <p className="text-lg font-semibold text-slate-900 dark:text-slate-100">{passCount}</p>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-white p-2.5 text-xs shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                    <p className="uppercase tracking-wide text-slate-500">Fail</p>
+                    <p className="text-lg font-semibold text-slate-900 dark:text-slate-100">{failCount}</p>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-white p-2.5 text-xs shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                    <p className="uppercase tracking-wide text-slate-500">Unknown</p>
+                    <p className="text-lg font-semibold text-slate-900 dark:text-slate-100">{unknownCount}</p>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-white p-2.5 text-xs shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                    <p className="uppercase tracking-wide text-slate-500">Critical issues</p>
+                    <p className="text-lg font-semibold text-slate-900 dark:text-slate-100">{criticalIssuesCount}</p>
+                  </div>
                 </div>
-                <div className="rounded-lg border border-slate-200 bg-white p-2.5 text-xs shadow-sm">
-                  <p className="uppercase tracking-wide text-slate-500">Fail</p>
-                  <p className="text-lg font-semibold text-slate-900">{failCount}</p>
-                </div>
-                <div className="rounded-lg border border-slate-200 bg-white p-2.5 text-xs shadow-sm">
-                  <p className="uppercase tracking-wide text-slate-500">Unknown</p>
-                  <p className="text-lg font-semibold text-slate-900">{unknownCount}</p>
-                </div>
-                <div className="rounded-lg border border-slate-200 bg-white p-2.5 text-xs shadow-sm">
-                  <p className="uppercase tracking-wide text-slate-500">Critical issues</p>
-                  <p className="text-lg font-semibold text-slate-900">{criticalIssuesCount}</p>
-                </div>
-              </div>
 
-              <ul className="space-y-4">
-                {results.map((result, resultIndex) => (
-                  <li
-                    key={`${result.requirementId}-${resultIndex}`}
-                    className={`rounded-lg border p-4 shadow-sm ${statusClass(result.status)}`}
-                  >
-                    <div className="mb-3 flex flex-wrap items-center gap-2">
-                      <span
-                        className={`rounded border px-2 py-1 text-xs font-semibold uppercase tracking-wide ${statusBadgeClass(
-                          result.status
-                        )}`}
-                      >
-                        {result.status}
-                      </span>
-                      <span
-                        className={`rounded border px-2 py-1 text-xs font-semibold uppercase tracking-wide ${severityBadgeClass(
-                          result.severity
-                        )}`}
-                      >
-                        {result.severity}
-                      </span>
-                    </div>
-                    <div className="space-y-1 text-xs text-slate-700">
-                      <p>
-                        Requirement ID: <span className="font-semibold">{result.requirementId}</span>
+                <ul className="space-y-4">
+                  {results.map((result, resultIndex) => (
+                    <li
+                      key={`${result.requirementId}-${resultIndex}`}
+                      className={`rounded-lg border p-4 shadow-sm ${statusBackgroundClass(result.status)}`}
+                    >
+                      <div className="mb-3 flex flex-wrap items-center gap-2">
+                        <Badge variant={statusBadgeVariant(result.status)}>{result.status}</Badge>
+                        <Badge variant={severityBadgeVariant(result.severity)}>{result.severity}</Badge>
+                        {result.status !== "pass" ? (
+                          <AlertTriangle className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
+                        ) : (
+                          <CheckCircle2 className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
+                        )}
+                      </div>
+                      <div className="space-y-1 text-xs text-slate-700 dark:text-slate-300">
+                        <p>
+                          Requirement ID: <span className="font-semibold">{result.requirementId}</span>
+                        </p>
+                        <p>
+                          Affected element IDs:{" "}
+                          <span className="font-semibold">
+                            {result.affectedElementIds.length > 0
+                              ? result.affectedElementIds.join(", ")
+                              : "none"}
+                          </span>
+                        </p>
+                      </div>
+                      <p className="mt-3 text-sm font-medium leading-relaxed text-slate-900 dark:text-slate-100">
+                        {result.summary}
                       </p>
-                      <p>
-                        Affected element IDs:{" "}
-                        <span className="font-semibold">
-                          {result.affectedElementIds.length > 0
-                            ? result.affectedElementIds.join(", ")
-                            : "none"}
-                        </span>
+                      <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-700 dark:text-slate-300">
+                          Evidence
+                        </p>
+                        <ul className="mt-2 space-y-2">
+                          {result.evidence.map((item, evidenceIndex) => (
+                            <li
+                              key={`${result.ruleId}-${resultIndex}-${evidenceIndex}`}
+                              className="rounded border border-slate-200 bg-slate-50 p-2.5 text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300"
+                            >
+                              <p className="leading-relaxed">{item.message}</p>
+                              <div className="mt-1 grid gap-1 sm:grid-cols-2">
+                                <p>
+                                  Observed: <span className="font-semibold">{String(item.observed ?? "null")}</span>
+                                </p>
+                                <p>
+                                  Expected: <span className="font-semibold">{String(item.expected ?? "n/a")}</span>
+                                </p>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                      <p className="mt-3 text-xs text-slate-600 dark:text-slate-400">
+                        Requirement: <span className="font-semibold">{result.requirementTitle}</span>
                       </p>
-                    </div>
-                    <p className="mt-3 text-sm font-medium leading-relaxed text-slate-900">{result.summary}</p>
-                    <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">Evidence</p>
-                      <ul className="mt-2 space-y-2">
-                        {result.evidence.map((item, evidenceIndex) => (
-                          <li
-                            key={`${result.ruleId}-${resultIndex}-${evidenceIndex}`}
-                            className="rounded border border-slate-200 bg-slate-50 p-2.5 text-xs text-slate-700"
-                          >
-                            <p className="leading-relaxed">{item.message}</p>
-                            <div className="mt-1 grid gap-1 sm:grid-cols-2">
-                              <p>
-                                Observed: <span className="font-semibold">{String(item.observed ?? "null")}</span>
-                              </p>
-                              <p>
-                                Expected: <span className="font-semibold">{String(item.expected ?? "n/a")}</span>
-                              </p>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                    <p className="mt-3 text-xs text-slate-600">
-                      Requirement: <span className="font-semibold">{result.requirementTitle}</span>
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            </article>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
 
-            <article className="rounded-xl border border-slate-200 bg-white/95 p-5 shadow-sm shadow-slate-200/60">
-              <h2 className="mb-2 text-lg font-semibold text-slate-900">Evidence Store Note</h2>
-              <p className="text-sm text-slate-700">
-                All claims shown in ADAS Chat come from deterministic rule outputs above. Unknown states are preserved
-                until model facts are completed.
-              </p>
-            </article>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg">Evidence Store Note</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-slate-700 dark:text-slate-300">
+                  All ADAS Chat answers are constrained to deterministic validation evidence generated from the
+                  currently loaded normalized model data and requirements.
+                </p>
+              </CardContent>
+            </Card>
           </section>
         </div>
       </div>
