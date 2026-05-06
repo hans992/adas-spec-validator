@@ -55,8 +55,8 @@ export default function Home() {
   ).length;
 
   return (
-    <main className="min-h-screen px-4 py-8 sm:px-6 sm:py-10">
-      <div className="mx-auto max-w-7xl space-y-6">
+    <main className="min-h-screen px-4 py-7 sm:px-6 sm:py-9">
+      <div className="mx-auto max-w-7xl space-y-5">
         <header className="rounded-md border border-slate-300 bg-white p-6 shadow-sm">
           <h1 className="text-3xl font-semibold tracking-tight">ADAS Spec Validator</h1>
           <p className="mt-1 text-sm text-slate-600">
@@ -73,7 +73,7 @@ export default function Home() {
           <span className="px-2 text-slate-400">→</span> AI Explanation
         </section>
 
-        <section className="grid gap-6 lg:grid-cols-2">
+        <section className="grid gap-5 lg:grid-cols-2">
           <article className="rounded-md border border-slate-300 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-semibold text-slate-900">Why this matters</h2>
             <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-700">
@@ -103,24 +103,24 @@ export default function Home() {
           </article>
         </section>
 
-        <div className="grid gap-6 lg:grid-cols-2">
-          <section className="space-y-6">
+        <div className="grid gap-5 lg:grid-cols-[0.92fr_1.08fr]">
+          <section className="space-y-5">
             <article className="rounded-md border border-slate-300 bg-white p-5 shadow-sm">
-              <h2 className="mb-3 text-lg font-semibold text-slate-900">Model Data</h2>
-              <pre className="max-h-80 overflow-auto rounded border border-slate-200 bg-slate-50 p-3 font-mono text-xs leading-relaxed text-slate-700">
+              <h2 className="mb-2 text-lg font-semibold text-slate-900">Model Data</h2>
+              <pre className="max-h-52 overflow-auto rounded border border-slate-200 bg-slate-50 p-3 font-mono text-xs leading-relaxed text-slate-700">
                 {JSON.stringify(model, null, 2)}
               </pre>
             </article>
 
             <article className="rounded-md border border-slate-300 bg-white p-5 shadow-sm">
-              <h2 className="mb-3 text-lg font-semibold text-slate-900">Requirements</h2>
-              <pre className="max-h-80 overflow-auto rounded border border-slate-200 bg-slate-50 p-3 font-mono text-xs leading-relaxed text-slate-700">
+              <h2 className="mb-2 text-lg font-semibold text-slate-900">Requirements</h2>
+              <pre className="max-h-52 overflow-auto rounded border border-slate-200 bg-slate-50 p-3 font-mono text-xs leading-relaxed text-slate-700">
                 {JSON.stringify(requirements, null, 2)}
               </pre>
             </article>
           </section>
 
-          <section className="space-y-6">
+          <section className="space-y-5">
             <AdasChatPanel normalizedModel={model} validationResults={results} />
 
             <article className="rounded-md border border-slate-300 bg-white p-5 shadow-sm">
