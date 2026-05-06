@@ -296,7 +296,11 @@ export default function Home() {
             <div className="grid gap-3 md:grid-cols-2">
               <div
                 {...modelDropzone.getRootProps()}
-                className="cursor-pointer rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 transition hover:border-slate-400 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
+                className={`cursor-pointer rounded-lg border border-dashed p-4 transition ${
+                  modelDropzone.isDragActive
+                    ? "border-indigo-400 bg-indigo-50 dark:border-indigo-400/80 dark:bg-indigo-950/30"
+                    : "border-slate-300 bg-slate-50 hover:border-slate-400 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600 dark:hover:bg-slate-800"
+                }`}
               >
                 <input {...modelDropzone.getInputProps()} />
                 <div className="flex items-start gap-3">
@@ -324,7 +328,11 @@ export default function Home() {
 
               <div
                 {...requirementsDropzone.getRootProps()}
-                className="cursor-pointer rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 transition hover:border-slate-400 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
+                className={`cursor-pointer rounded-lg border border-dashed p-4 transition ${
+                  requirementsDropzone.isDragActive
+                    ? "border-indigo-400 bg-indigo-50 dark:border-indigo-400/80 dark:bg-indigo-950/30"
+                    : "border-slate-300 bg-slate-50 hover:border-slate-400 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600 dark:hover:bg-slate-800"
+                }`}
               >
                 <input {...requirementsDropzone.getInputProps()} />
                 <div className="flex items-start gap-3">

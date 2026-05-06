@@ -110,8 +110,8 @@ export function AdasChatPanel({ normalizedModel, validationResults }: AdasChatPa
                 size="sm"
                 className={`h-9 ${
                   isActive
-                    ? "border-slate-800 bg-slate-900 font-medium text-white shadow-sm"
-                    : ""
+                    ? "border-slate-800 bg-slate-900 font-medium text-white shadow-sm dark:border-indigo-400/70 dark:bg-slate-700 dark:text-slate-50 dark:ring-1 dark:ring-indigo-400/40"
+                    : "dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-100 dark:hover:border-slate-500 dark:hover:bg-slate-700"
                 }`}
               >
                 {role}
@@ -131,7 +131,7 @@ export function AdasChatPanel({ normalizedModel, validationResults }: AdasChatPa
               key={example}
               variant="outline"
               size="sm"
-              className="h-auto px-2.5 py-1.5 text-xs"
+              className="h-auto px-2.5 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-100 dark:hover:border-slate-500 dark:hover:bg-slate-700"
               onClick={() => setQuestion(example)}
             >
               {example}
@@ -153,7 +153,11 @@ export function AdasChatPanel({ normalizedModel, validationResults }: AdasChatPa
         />
       </div>
 
-      <Button onClick={submitQuestion} disabled={disabled} className="w-full sm:w-auto">
+      <Button
+        onClick={submitQuestion}
+        disabled={disabled}
+        className="w-full sm:w-auto dark:border-slate-500 dark:bg-slate-700 dark:hover:bg-slate-600 dark:focus-visible:ring-slate-500"
+      >
         {isSubmitting ? "Answering..." : "Ask ADAS Chat"}
       </Button>
 
