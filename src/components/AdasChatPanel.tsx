@@ -76,35 +76,45 @@ export function AdasChatPanel({ normalizedModel, validationResults }: AdasChatPa
         Answers are constrained to model facts and deterministic validation evidence.
       </p>
 
-      <div className="mb-3">
-        <label htmlFor="role-select" className="mb-1 block text-xs font-semibold uppercase text-slate-700">
-          Role
-        </label>
-        <select
-          id="role-select"
-          className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
-          value={selectedRole}
-          onChange={(event) => setSelectedRole(event.target.value as AdasRole)}
-        >
-          {roleOptions.map((role) => (
-            <option key={role} value={role}>
-              {role}
-            </option>
-          ))}
-        </select>
+      <div className="mb-4 rounded border border-slate-200 bg-slate-50 p-3">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-700">Role</p>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          {roleOptions.map((role) => {
+            const isActive = selectedRole === role;
+            return (
+              <button
+                key={role}
+                type="button"
+                onClick={() => setSelectedRole(role)}
+                className={`rounded border px-3 py-2 text-sm ${
+                  isActive
+                    ? "border-slate-800 bg-slate-900 font-medium text-white"
+                    : "border-slate-300 bg-white text-slate-800 hover:bg-slate-100"
+                }`}
+              >
+                {role}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      <div className="mb-3 flex flex-wrap gap-2">
-        {exampleQuestions.map((example) => (
-          <button
-            key={example}
-            type="button"
-            className="rounded border border-slate-300 bg-slate-50 px-2 py-1 text-xs text-slate-700 hover:bg-slate-100"
-            onClick={() => setQuestion(example)}
-          >
-            {example}
-          </button>
-        ))}
+      <div className="mb-4 rounded border border-slate-200 bg-slate-50 p-3">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-700">
+          Sample Questions
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {exampleQuestions.map((example) => (
+            <button
+              key={example}
+              type="button"
+              className="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-100"
+              onClick={() => setQuestion(example)}
+            >
+              {example}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="mb-3">

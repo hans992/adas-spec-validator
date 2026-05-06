@@ -16,6 +16,32 @@ function statusClass(status: ValidationStatus): string {
   }
 }
 
+function statusBadgeClass(status: ValidationStatus): string {
+  switch (status) {
+    case "pass":
+      return "border-emerald-300 bg-emerald-100 text-emerald-900";
+    case "fail":
+      return "border-rose-300 bg-rose-100 text-rose-900";
+    case "unknown":
+      return "border-amber-300 bg-amber-100 text-amber-900";
+    default:
+      return "border-slate-300 bg-slate-100 text-slate-900";
+  }
+}
+
+function severityBadgeClass(severity: "info" | "warning" | "critical"): string {
+  switch (severity) {
+    case "critical":
+      return "border-rose-300 bg-rose-100 text-rose-900";
+    case "warning":
+      return "border-amber-300 bg-amber-100 text-amber-900";
+    case "info":
+      return "border-sky-300 bg-sky-100 text-sky-900";
+    default:
+      return "border-slate-300 bg-slate-100 text-slate-900";
+  }
+}
+
 export default function Home() {
   const { model, requirements, results } = validateWithDeterministicRules(
     sampleModelData,
@@ -29,7 +55,7 @@ export default function Home() {
   ).length;
 
   return (
-    <main className="min-h-screen px-6 py-10">
+    <main className="min-h-screen px-4 py-8 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-7xl space-y-6">
         <header className="rounded-md border border-slate-300 bg-white p-6 shadow-sm">
           <h1 className="text-3xl font-semibold tracking-tight">ADAS Spec Validator</h1>
@@ -50,11 +76,11 @@ export default function Home() {
         <section className="grid gap-6 lg:grid-cols-2">
           <article className="rounded-md border border-slate-300 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-semibold text-slate-900">Why this matters</h2>
-            <ul className="mt-3 space-y-2 text-sm text-slate-700">
-              <li>- CAD/BIM model facts are validated deterministically before AI is used.</li>
-              <li>- Missing model data stays unknown rather than guessed.</li>
-              <li>- ADAS Chat is constrained to validation evidence and model facts.</li>
-              <li>- The C# extractor prototype shows the Revit/AutoCAD integration boundary.</li>
+            <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-700">
+              <li>CAD/BIM model facts are validated deterministically before AI is used.</li>
+              <li>Missing model data stays unknown rather than guessed.</li>
+              <li>ADAS Chat is constrained to validation evidence and model facts.</li>
+              <li>The C# extractor prototype shows the Revit/AutoCAD integration boundary.</li>
             </ul>
           </article>
 
@@ -81,14 +107,14 @@ export default function Home() {
           <section className="space-y-6">
             <article className="rounded-md border border-slate-300 bg-white p-5 shadow-sm">
               <h2 className="mb-3 text-lg font-semibold text-slate-900">Model Data</h2>
-              <pre className="max-h-80 overflow-auto rounded border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+              <pre className="max-h-80 overflow-auto rounded border border-slate-200 bg-slate-50 p-3 font-mono text-xs leading-relaxed text-slate-700">
                 {JSON.stringify(model, null, 2)}
               </pre>
             </article>
 
             <article className="rounded-md border border-slate-300 bg-white p-5 shadow-sm">
               <h2 className="mb-3 text-lg font-semibold text-slate-900">Requirements</h2>
-              <pre className="max-h-80 overflow-auto rounded border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+              <pre className="max-h-80 overflow-auto rounded border border-slate-200 bg-slate-50 p-3 font-mono text-xs leading-relaxed text-slate-700">
                 {JSON.stringify(requirements, null, 2)}
               </pre>
             </article>
@@ -118,43 +144,66 @@ export default function Home() {
                 </div>
               </div>
 
-              <ul className="space-y-3">
+              <ul className="space-y-4">
                 {results.map((result, resultIndex) => (
                   <li
                     key={`${result.requirementId}-${resultIndex}`}
-                    className={`rounded border p-3 ${statusClass(result.status)}`}
+                    className={`rounded border p-4 ${statusClass(result.status)}`}
                   >
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                      <span className="text-xs font-semibold uppercase tracking-widest">status: {result.status}</span>
-                      <span className="text-xs uppercase tracking-wide">severity: {result.severity}</span>
-                    </div>
-                    <p className="text-xs text-slate-700">
-                      requirement id: <span className="font-semibold">{result.requirementId}</span>
-                    </p>
-                    <p className="text-xs text-slate-700">
-                      requirement: <span className="font-semibold">{result.requirementTitle}</span>
-                    </p>
-                    <p className="mt-2 text-sm font-medium">{result.summary}</p>
-                    <p className="mt-2 text-xs">
-                      affected element ids:{" "}
-                      <span className="font-semibold">
-                        {result.affectedElementIds.length > 0
-                          ? result.affectedElementIds.join(", ")
-                          : "none"}
+                    <div className="mb-3 flex flex-wrap items-center gap-2">
+                      <span
+                        className={`rounded border px-2 py-1 text-xs font-semibold uppercase tracking-wide ${statusBadgeClass(
+                          result.status
+                        )}`}
+                      >
+                        {result.status}
                       </span>
-                    </p>
-                    <div className="mt-3 rounded border border-slate-200 bg-white/70 p-2">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">evidence items</p>
-                      <ul className="mt-1 space-y-2 text-xs text-slate-700">
+                      <span
+                        className={`rounded border px-2 py-1 text-xs font-semibold uppercase tracking-wide ${severityBadgeClass(
+                          result.severity
+                        )}`}
+                      >
+                        {result.severity}
+                      </span>
+                    </div>
+                    <div className="space-y-1 text-xs text-slate-700">
+                      <p>
+                        Requirement ID: <span className="font-semibold">{result.requirementId}</span>
+                      </p>
+                      <p>
+                        Affected element IDs:{" "}
+                        <span className="font-semibold">
+                          {result.affectedElementIds.length > 0
+                            ? result.affectedElementIds.join(", ")
+                            : "none"}
+                        </span>
+                      </p>
+                    </div>
+                    <p className="mt-3 text-sm font-medium leading-relaxed text-slate-900">{result.summary}</p>
+                    <div className="mt-3 rounded border border-slate-200 bg-white/80 p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">Evidence</p>
+                      <ul className="mt-2 space-y-2">
                         {result.evidence.map((item, evidenceIndex) => (
-                          <li key={`${result.ruleId}-${resultIndex}-${evidenceIndex}`}>
-                            <p>message: {item.message}</p>
-                            <p>observed: {String(item.observed ?? "null")}</p>
-                            <p>expected: {String(item.expected ?? "n/a")}</p>
+                          <li
+                            key={`${result.ruleId}-${resultIndex}-${evidenceIndex}`}
+                            className="rounded border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700"
+                          >
+                            <p className="leading-relaxed">{item.message}</p>
+                            <div className="mt-1 grid gap-1 sm:grid-cols-2">
+                              <p>
+                                Observed: <span className="font-semibold">{String(item.observed ?? "null")}</span>
+                              </p>
+                              <p>
+                                Expected: <span className="font-semibold">{String(item.expected ?? "n/a")}</span>
+                              </p>
+                            </div>
                           </li>
                         ))}
                       </ul>
                     </div>
+                    <p className="mt-3 text-xs text-slate-600">
+                      Requirement: <span className="font-semibold">{result.requirementTitle}</span>
+                    </p>
                   </li>
                 ))}
               </ul>
