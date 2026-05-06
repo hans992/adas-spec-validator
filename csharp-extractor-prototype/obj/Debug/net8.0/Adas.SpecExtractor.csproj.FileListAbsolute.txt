@@ -1,0 +1,14 @@
+D:\BIM Compliance Agent\csharp-extractor-prototype\bin\Debug\net8.0\Adas.SpecExtractor.exe
+D:\BIM Compliance Agent\csharp-extractor-prototype\bin\Debug\net8.0\Adas.SpecExtractor.deps.json
+D:\BIM Compliance Agent\csharp-extractor-prototype\bin\Debug\net8.0\Adas.SpecExtractor.runtimeconfig.json
+D:\BIM Compliance Agent\csharp-extractor-prototype\bin\Debug\net8.0\Adas.SpecExtractor.dll
+D:\BIM Compliance Agent\csharp-extractor-prototype\bin\Debug\net8.0\Adas.SpecExtractor.pdb
+D:\BIM Compliance Agent\csharp-extractor-prototype\obj\Debug\net8.0\Adas.SpecExtractor.GeneratedMSBuildEditorConfig.editorconfig
+D:\BIM Compliance Agent\csharp-extractor-prototype\obj\Debug\net8.0\Adas.SpecExtractor.AssemblyInfoInputs.cache
+D:\BIM Compliance Agent\csharp-extractor-prototype\obj\Debug\net8.0\Adas.SpecExtractor.AssemblyInfo.cs
+D:\BIM Compliance Agent\csharp-extractor-prototype\obj\Debug\net8.0\Adas.SpecExtractor.csproj.CoreCompileInputs.cache
+D:\BIM Compliance Agent\csharp-extractor-prototype\obj\Debug\net8.0\Adas.SpecExtractor.dll
+D:\BIM Compliance Agent\csharp-extractor-prototype\obj\Debug\net8.0\refint\Adas.SpecExtractor.dll
+D:\BIM Compliance Agent\csharp-extractor-prototype\obj\Debug\net8.0\Adas.SpecExtractor.pdb
+D:\BIM Compliance Agent\csharp-extractor-prototype\obj\Debug\net8.0\Adas.SpecExtractor.genruntimeconfig.cache
+D:\BIM Compliance Agent\csharp-extractor-prototype\obj\Debug\net8.0\ref\Adas.SpecExtractor.dll
