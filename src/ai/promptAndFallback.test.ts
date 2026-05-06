@@ -59,6 +59,27 @@ describe("ADAS prompt and fallback", () => {
     expect(prompt).toContain("Area parameter is not available in normalized model data.");
   });
 
+  it("includes concise answer instruction", () => {
+    const prompt = buildAdasPrompt(requestFixture);
+    expect(prompt).toContain("Be concise by default");
+    expect(ADAS_SYSTEM_PROMPT).toContain("Be concise by default");
+  });
+
+  it("instructs not to dump full model unless asked", () => {
+    const prompt = buildAdasPrompt(requestFixture);
+    expect(prompt).toContain("Do not dump the full model");
+    expect(ADAS_SYSTEM_PROMPT).toContain("Do not dump the full model");
+  });
+
+  it("includes vague-question clarification guidance", () => {
+    const prompt = buildAdasPrompt({
+      ...requestFixture,
+      userQuestion: "What is what?"
+    });
+    expect(prompt).toContain("If the question is vague");
+    expect(ADAS_SYSTEM_PROMPT).toContain('For vague questions like "What is this?", "What is what?", or "Explain this"');
+  });
+
   it("includes element ids in prompt context", () => {
     const prompt = buildAdasPrompt(requestFixture);
     expect(prompt).toContain("rm-stock-02");

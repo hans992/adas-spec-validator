@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { NormalizedModel, ValidationResult } from "@/domain/types";
 import type { AdasRole } from "@/ai/types";
+import ReactMarkdown from "react-markdown";
 
 const roleOptions: AdasRole[] = ["Design Engineer", "Stockroom Personnel", "Project Manager"];
 
@@ -173,7 +174,24 @@ export function AdasChatPanel({ normalizedModel, validationResults }: AdasChatPa
             </div>
           </div>
           <div className="rounded border border-slate-200 bg-white p-3">
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-800">{answer}</p>
+            <div className="space-y-3 text-sm leading-relaxed text-slate-800">
+              <ReactMarkdown
+                components={{
+                  p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                  ul: ({ children }) => <ul className="mb-2 list-disc space-y-1 pl-5">{children}</ul>,
+                  ol: ({ children }) => <ol className="mb-2 list-decimal space-y-1 pl-5">{children}</ol>,
+                  li: ({ children }) => <li>{children}</li>,
+                  strong: ({ children }) => <strong className="font-semibold text-slate-900">{children}</strong>,
+                  code: ({ children }) => (
+                    <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs text-slate-900">
+                      {children}
+                    </code>
+                  )
+                }}
+              >
+                {answer}
+              </ReactMarkdown>
+            </div>
           </div>
         </div>
       ) : null}

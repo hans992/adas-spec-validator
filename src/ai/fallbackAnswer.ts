@@ -22,16 +22,16 @@ export function buildFallbackAnswer(input: AdasChatRequest): string {
   );
 
   const lines: string[] = [];
-  lines.push(`${roleTone(input.selectedRole)} based on deterministic validation evidence.`);
-  lines.push(`Results: ${passCount} pass, ${failCount} fail, ${unknownCount} unknown.`);
+  lines.push(`**${roleTone(input.selectedRole)}**`);
+  lines.push(`- Results: ${passCount} pass, ${failCount} fail, ${unknownCount} unknown.`);
 
   if (criticalFailures.length > 0) {
     const failureDetails = criticalFailures
       .map((item) => `${item.requirementId} (${item.affectedElementIds.join(", ")})`)
       .join("; ");
-    lines.push(`Critical failures: ${failureDetails}.`);
+    lines.push(`- Critical failures: ${failureDetails}.`);
   } else {
-    lines.push("Critical failures: none in current deterministic results.");
+    lines.push("- Critical failures: none in current deterministic results.");
   }
 
   if (unknownCount > 0) {
@@ -39,24 +39,24 @@ export function buildFallbackAnswer(input: AdasChatRequest): string {
       .filter((item) => item.status === "unknown")
       .flatMap((item) => item.affectedElementIds)
       .filter((value, index, all) => all.indexOf(value) === index);
-    lines.push(`Unknown items require follow-up model data: ${unknownIds.join(", ")}.`);
-    lines.push("Unknowns remain unknown until missing parameters or relationships are provided.");
+    lines.push(`- Unknown follow-up: ${unknownIds.join(", ")}.`);
+    lines.push("- Unknowns remain unknown until missing parameters or relationships are provided.");
   }
 
   if (
     /cannot determine|unknown|missing|insufficient|not sure/i.test(input.userQuestion) ||
     unknownCount > 0
   ) {
-    lines.push(EVIDENCE_GUARDRAIL);
+    lines.push(`- ${EVIDENCE_GUARDRAIL}`);
   }
 
   if (input.selectedRole === "Stockroom Personnel") {
-    lines.push("Use spaces cautiously where failures or unknowns exist until engineering follow-up is complete.");
+    lines.push("- Guidance: Use spaces cautiously where failures or unknowns exist.");
   } else if (input.selectedRole === "Project Manager") {
-    lines.push("Follow-up priority: resolve critical failures first, then close unknown data gaps.");
+    lines.push("- Follow-up priority: resolve critical failures first, then close unknown data gaps.");
   } else {
-    lines.push("Reference requirement IDs and element IDs above when planning corrective action.");
+    lines.push("- Action: Reference requirement IDs and element IDs when planning corrective action.");
   }
 
-  return lines.join(" ");
+  return lines.join("\n");
 }

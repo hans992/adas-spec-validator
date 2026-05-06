@@ -21,6 +21,13 @@ export function buildAdasPrompt(input: AdasChatRequest): string {
     `Selected role: ${input.selectedRole}`,
     `Role behavior instructions: ${roleInstruction(input.selectedRole)}`,
     "",
+    "Response style requirements:",
+    "- Be concise by default and answer the user's specific question directly.",
+    "- Prefer 3-6 bullets for summaries.",
+    "- Prioritize fail and unknown findings over pass findings.",
+    "- Do not dump the full model or all evidence unless explicitly asked.",
+    '- If the question is vague (for example: "What is this?", "What is what?", "Explain this"), provide a brief system-oriented clarification and suggest 2-3 better follow-up questions.',
+    "",
     "Anti-hallucination reminders:",
     "- Do not infer missing data.",
     "- Do not invent elements, measurements, or relationships.",
@@ -35,6 +42,6 @@ export function buildAdasPrompt(input: AdasChatRequest): string {
     "",
     `User question: ${input.userQuestion}`,
     "",
-    "Answer using only the provided evidence. Include element IDs in claims."
+    "Answer using only the provided evidence. Include element IDs and requirement IDs in claims where relevant."
   ].join("\n");
 }
