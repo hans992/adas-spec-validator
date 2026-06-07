@@ -7,6 +7,9 @@ import type { NormalizedModel, ValidationResult, RoomType, Room, Door } from "@/
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
+const focusRing =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 focus-visible:border-indigo-400";
+
 interface BimInspectorProps {
   model: NormalizedModel;
   validationResults: ValidationResult[];
@@ -241,7 +244,7 @@ export function BimInspector({
                       value={newRoomName}
                       placeholder="e.g. Office 103"
                       onChange={(e) => setNewRoomName(e.target.value)}
-                      className="w-full text-xs rounded border border-slate-300 px-2 py-1 bg-transparent dark:border-slate-800"
+                      className={`w-full text-xs rounded border border-slate-300 px-2 py-1 bg-transparent dark:border-slate-800 ${focusRing}`}
                     />
                   </div>
                   <div>
@@ -249,7 +252,7 @@ export function BimInspector({
                     <select
                       value={newRoomType}
                       onChange={(e) => setNewRoomType(e.target.value as RoomType)}
-                      className="w-full text-xs rounded border border-slate-300 px-2 py-1 bg-transparent dark:border-slate-800 dark:bg-slate-950"
+                      className={`w-full text-xs rounded border border-slate-300 px-2 py-1 bg-transparent dark:border-slate-800 dark:bg-slate-950 ${focusRing}`}
                     >
                       <option value="office">Office</option>
                       <option value="stockroom">Stockroom</option>
@@ -266,7 +269,7 @@ export function BimInspector({
                       step={0.5}
                       value={newRoomArea}
                       onChange={(e) => setNewRoomArea(Number(e.target.value))}
-                      className="w-full"
+                      className={`w-full ${focusRing}`}
                     />
                   </div>
                   <div className="flex gap-2 pt-1 justify-end">
@@ -291,7 +294,7 @@ export function BimInspector({
                       value={newDoorName}
                       placeholder="e.g. Door D6"
                       onChange={(e) => setNewDoorName(e.target.value)}
-                      className="w-full text-xs rounded border border-slate-300 px-2 py-1 bg-transparent dark:border-slate-800"
+                      className={`w-full text-xs rounded border border-slate-300 px-2 py-1 bg-transparent dark:border-slate-800 ${focusRing}`}
                     />
                   </div>
                   <div>
@@ -303,7 +306,7 @@ export function BimInspector({
                       step={0.05}
                       value={newDoorWidth}
                       onChange={(e) => setNewDoorWidth(Number(e.target.value))}
-                      className="w-full"
+                      className={`w-full ${focusRing}`}
                     />
                   </div>
                   <div className="flex gap-2 pt-1 justify-end">
@@ -367,7 +370,7 @@ export function BimInspector({
                         type="text"
                         value={activeRoom.name}
                         onChange={(e) => handleRoomNameChange(e.target.value)}
-                        className="w-full text-sm rounded-md border border-slate-200 bg-white/70 px-3 py-1.5 dark:border-slate-800 dark:bg-slate-950"
+                        className={`w-full text-sm rounded-md border border-slate-200 bg-white/70 px-3 py-1.5 dark:border-slate-800 dark:bg-slate-950 ${focusRing}`}
                       />
                     </div>
                   </div>
@@ -380,7 +383,7 @@ export function BimInspector({
                     <select
                       value={activeRoom.roomType}
                       onChange={(e) => handleRoomTypeChange(e.target.value as RoomType)}
-                      className="w-full text-sm rounded-md border border-slate-200 bg-white/70 px-3 py-1.5 dark:border-slate-800 dark:bg-slate-950"
+                      className={`w-full text-sm rounded-md border border-slate-200 bg-white/70 px-3 py-1.5 dark:border-slate-800 dark:bg-slate-950 ${focusRing}`}
                     >
                       <option value="office">Office Space</option>
                       <option value="stockroom">Stockroom Store</option>
@@ -408,7 +411,7 @@ export function BimInspector({
                           step={0.1}
                           value={activeRoom.areaSqm}
                           onChange={(e) => handleRoomAreaChange(Number(e.target.value))}
-                          className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer dark:bg-slate-850"
+                          className={`w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer dark:bg-slate-800 ${focusRing}`}
                         />
                       </div>
                     ) : (
@@ -456,7 +459,7 @@ export function BimInspector({
                       type="text"
                       value={activeDoor.name}
                       onChange={(e) => handleDoorNameChange(e.target.value)}
-                      className="w-full text-sm rounded-md border border-slate-200 bg-white/70 px-3 py-1.5 dark:border-slate-800 dark:bg-slate-950"
+                      className={`w-full text-sm rounded-md border border-slate-200 bg-white/70 px-3 py-1.5 dark:border-slate-800 dark:bg-slate-950 ${focusRing}`}
                     />
                   </div>
 
@@ -478,7 +481,7 @@ export function BimInspector({
                         step={0.01}
                         value={activeDoor.widthM}
                         onChange={(e) => handleDoorWidthChange(Number(e.target.value))}
-                        className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer dark:bg-slate-850"
+                        className={`w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer dark:bg-slate-800 ${focusRing}`}
                       />
                     ) : (
                       <Button
@@ -525,7 +528,7 @@ export function BimInspector({
                   {entityIssues.map((issue, idx) => (
                     <div
                       key={idx}
-                      className="text-xs border border-rose-100 bg-rose-50/30 p-2 rounded-md dark:border-rose-950 dark:bg-rose-950/10 text-rose-800 dark:text-rose-350"
+                      className="text-xs border border-rose-100 bg-rose-50/30 p-2 rounded-md dark:border-rose-950 dark:bg-rose-950/10 text-rose-800 dark:text-rose-400"
                     >
                       <p className="font-semibold">{issue.requirementTitle}</p>
                       <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{issue.summary}</p>

@@ -1,26 +1,17 @@
 "use client";
 
-import { useCallback, useMemo, useState, useEffect } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   AlertTriangle,
   Brain,
   CheckCircle2,
-  Database,
   FileJson,
-  ShieldCheck,
-  Sparkles,
   UploadCloud,
-  Workflow,
-  PlusCircle,
   FileDown,
-  LayoutGrid,
-  Settings,
   RefreshCw,
   Terminal,
-  Activity,
-  Check,
   ChevronRight
 } from "lucide-react";
 
@@ -29,11 +20,9 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { BimFloorPlan } from "@/components/BimFloorPlan";
 import { BimInspector } from "@/components/BimInspector";
 import { RuleBuilder } from "@/components/RuleBuilder";
-import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 
 import { sampleModelData, sampleRequirements } from "@/domain/sampleData";
 import { mockIfcModelData } from "@/domain/mockIfcData";
@@ -43,7 +32,7 @@ import {
   validateUploadedRequirements
 } from "@/domain/uploadHelpers";
 import { validateWithDeterministicRules } from "@/domain/validationPipeline";
-import type { NormalizedModel, Requirement, ValidationSeverity, ValidationStatus } from "@/domain/types";
+import type { NormalizedModel, Requirement } from "@/domain/types";
 
 type DataSourceStatus = "sample" | "uploaded";
 
@@ -311,7 +300,7 @@ ${res.evidence
   }
 
   return (
-    <main className="min-h-screen px-4 py-6 sm:px-6 sm:py-8 lg:px-8 bg-[#f8fafc] text-slate-900 dark:bg-[#020617] dark:text-slate-100 transition-colors duration-200">
+    <main className="min-h-screen px-4 py-6 sm:px-6 sm:py-8 lg:px-8 text-slate-900 dark:text-slate-100 transition-colors duration-200">
       <div className="mx-auto max-w-[1700px] space-y-6">
         
         {/* Header Block with Neon Glare */}
@@ -335,6 +324,7 @@ ${res.evidence
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 Deterministic compliance engine mapping Revit / AutoCAD models against strict architectural requirements.
               </p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 font-mono">{dataSourceLabel}</p>
             </div>
             
             <div className="flex items-center gap-2.5 self-start md:self-auto">
@@ -390,16 +380,23 @@ ${res.evidence
 
           {/* Compliance counters */}
           {[
-            { label: "Valid Passes", value: passCount, color: "text-emerald-500 bg-emerald-500/10", border: "border-emerald-200/50 dark:border-emerald-950/50" },
-            { label: "Detected Violations", value: failCount, color: "text-rose-500 bg-rose-500/10", border: "border-rose-200/50 dark:border-rose-950/50" },
-            { label: "Unknown (Missing Parameters)", value: unknownCount, color: "text-amber-500 bg-amber-500/10", border: "border-amber-200/50 dark:border-amber-950/50" }
+            { label: "Valid Passes", value: passCount, color: "text-emerald-500 bg-emerald-500/10", border: "border-emerald-200/50 dark:border-emerald-950/50", criticalCount: undefined as number | undefined },
+            { label: "Detected Violations", value: failCount, color: "text-rose-500 bg-rose-500/10", border: "border-rose-200/50 dark:border-rose-950/50", criticalCount: criticalIssuesCount },
+            { label: "Unknown (Missing Parameters)", value: unknownCount, color: "text-amber-500 bg-amber-500/10", border: "border-amber-200/50 dark:border-amber-950/50", criticalCount: undefined as number | undefined }
           ].map((stat, i) => (
             <Card key={i} className={`p-4 flex flex-col justify-between shadow-md border ${stat.border}`}>
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{stat.label}</span>
                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${stat.color}`}>OUTCOME</span>
               </div>
-              <p className="text-3xl font-extrabold tracking-tight mt-3 text-left">{stat.value}</p>
+              <div className="mt-3 text-left">
+                <p className="text-3xl font-extrabold tracking-tight">{stat.value}</p>
+                {stat.criticalCount !== undefined && (
+                  <Badge variant="destructive" className="mt-2 text-[10px] py-0 font-semibold">
+                    {stat.criticalCount} critical
+                  </Badge>
+                )}
+              </div>
             </Card>
           ))}
         </div>
@@ -407,7 +404,7 @@ ${res.evidence
         {/* Workspace Layout */}
         <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr_1fr] xl:grid-cols-[1.2fr_0.9fr_0.9fr]">
           
-          {/* COLUMN 1: TLOCTRT VISUALIZER & IFC LOGGER */}
+          {/* COLUMN 1: FLOOR PLAN VISUALIZER & IFC LOGGER */}
           <section className="space-y-6 flex flex-col">
             
             {/* Main Interactive Map Card */}
@@ -531,7 +528,7 @@ ${res.evidence
                     className={`cursor-pointer rounded-xl border border-dashed p-4 transition text-left flex flex-col justify-between ${
                       modelDropzone.isDragActive
                         ? "border-indigo-400 bg-indigo-50/50 dark:border-indigo-500/20 dark:bg-indigo-950/20"
-                        : "border-slate-200 hover:border-indigo-400 hover:bg-slate-50 dark:border-slate-850 dark:hover:border-slate-800"
+                        : "border-slate-200 hover:border-indigo-400 hover:bg-slate-50 dark:border-slate-800 dark:hover:border-slate-700"
                     }`}
                   >
                     <input {...modelDropzone.getInputProps()} />
@@ -553,7 +550,7 @@ ${res.evidence
                     className={`cursor-pointer rounded-xl border border-dashed p-4 transition text-left flex flex-col justify-between ${
                       requirementsDropzone.isDragActive
                         ? "border-indigo-400 bg-indigo-50/50 dark:border-indigo-500/20 dark:bg-indigo-950/20"
-                        : "border-slate-200 hover:border-indigo-400 hover:bg-slate-50 dark:border-slate-850 dark:hover:border-slate-800"
+                        : "border-slate-200 hover:border-indigo-400 hover:bg-slate-50 dark:border-slate-800 dark:hover:border-slate-700"
                     }`}
                   >
                     <input {...requirementsDropzone.getInputProps()} />
@@ -619,13 +616,13 @@ ${res.evidence
                                     ? "destructive"
                                     : "warning"
                               }
-                              className="uppercase text-[9px] font-bold py-0"
+                              className="uppercase text-[10px] font-bold py-0"
                             >
                               {result.status}
                             </Badge>
                             <Badge
                               variant={result.severity === "critical" ? "destructive" : "default"}
-                              className="text-[9px] py-0 font-medium opacity-80"
+                              className="text-[10px] py-0 font-medium opacity-80"
                             >
                               {result.severity}
                             </Badge>
@@ -649,21 +646,21 @@ ${res.evidence
                         </p>
 
                         {/* Expandable Evidence items */}
-                        <div className="mt-3 bg-white/70 rounded-lg p-2.5 border border-slate-100 dark:bg-slate-900/60 dark:border-slate-850">
-                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1">
+                        <div className="mt-3 bg-white/70 rounded-lg p-2.5 border border-slate-100 dark:bg-slate-900/60 dark:border-slate-800">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1">
                             <ChevronRight className="h-3 w-3" /> Technical Evidence Fact
                           </p>
                           {result.evidence.map((item, evidenceIndex) => (
-                            <div key={evidenceIndex} className="space-y-1 font-mono text-[9px] text-slate-600 dark:text-slate-400">
+                            <div key={evidenceIndex} className="space-y-1 font-mono text-[10px] text-slate-600 dark:text-slate-400">
                               <p className="leading-tight">{item.message}</p>
                               <div className="grid grid-cols-2 gap-1 bg-slate-50/50 p-1.5 rounded dark:bg-slate-950/40 mt-1">
                                 <div>
                                   <span className="text-slate-400">Observed:</span>{" "}
-                                  <span className="font-bold text-slate-700 dark:text-slate-350">{String(item.observed ?? "null")}</span>
+                                  <span className="font-bold text-slate-700 dark:text-slate-300">{String(item.observed ?? "null")}</span>
                                 </div>
                                 <div>
                                   <span className="text-slate-400">Expected:</span>{" "}
-                                  <span className="font-bold text-slate-700 dark:text-slate-350">{String(item.expected ?? "n/a")}</span>
+                                  <span className="font-bold text-slate-700 dark:text-slate-300">{String(item.expected ?? "n/a")}</span>
                                 </div>
                               </div>
                             </div>
@@ -673,13 +670,13 @@ ${res.evidence
                         {/* Interactive Click to Highlight button */}
                         {result.affectedElementIds.length > 0 && (
                           <div className="mt-3 flex items-center justify-between">
-                            <span className="text-[9px] font-mono text-slate-450 dark:text-slate-500">
+                            <span className="text-[10px] font-mono text-slate-500 dark:text-slate-500">
                               Refs: {result.affectedElementIds.join(", ")}
                             </span>
                             <button
                               type="button"
                               onClick={() => handleSelectElement(result.affectedElementIds[0], result.elementType === "room" ? "room" : "door")}
-                              className="text-[9px] font-semibold text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300"
+                              className="text-[10px] font-semibold text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300"
                             >
                               Show on floor plan &gt;
                             </button>
@@ -722,7 +719,7 @@ ${res.evidence
               <h5 className="text-xs font-bold text-indigo-600 dark:text-indigo-400 flex items-center gap-1">
                 <Brain className="h-3.5 w-3.5" /> Deterministic Compliance Policy
               </h5>
-              <p className="text-[11px] text-slate-550 dark:text-slate-400 mt-1 leading-normal text-left">
+              <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 leading-normal text-left">
                 The chatbot answers are strictly grounded in active spatial facts. Missing properties default to `unknown`, eliminating any AI-hallucinated certification passes.
               </p>
             </Card>

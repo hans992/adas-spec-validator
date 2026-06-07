@@ -10,6 +10,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
+const focusRing =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 focus-visible:border-indigo-400";
+
 const roleOptions: AdasRole[] = ["Design Engineer", "Stockroom Personnel", "Project Manager"];
 
 const exampleQuestions = [
@@ -89,7 +92,7 @@ export function AdasChatPanel({
   }
 
   return (
-    <Card className="overflow-hidden border-slate-800 bg-slate-950 text-slate-100 shadow-2xl relative">
+    <Card className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-950 text-slate-100 shadow-2xl relative">
       {/* Absolute ambient glow */}
       <div className="absolute top-0 right-0 -mt-8 -mr-8 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
 
@@ -99,7 +102,7 @@ export function AdasChatPanel({
             <Terminal className="h-3.5 w-3.5" />
             ADAS AI COGNITIVE CORE
           </p>
-          <div className="flex items-center gap-1.5 text-[9px] font-mono text-emerald-400">
+          <div className="flex items-center gap-1.5 text-[10px] font-mono text-emerald-400">
             <Activity className="h-3 w-3 animate-pulse" />
             AI-STATUS: ONLINE
           </div>
@@ -165,7 +168,7 @@ export function AdasChatPanel({
               onChange={(event) => setQuestion(event.target.value)}
               rows={3}
               placeholder="Ask ADAS to explain room layouts or rule violations..."
-              className="w-full rounded-md border border-slate-900 bg-slate-950 px-3 py-2 text-xs text-slate-200 font-mono shadow-inner outline-none transition focus:border-indigo-950 focus:ring-1 focus:ring-indigo-900/30 placeholder-slate-650"
+              className={`w-full rounded-md border border-slate-900 bg-slate-950 px-3 py-2 text-xs text-slate-200 font-mono shadow-inner outline-none transition focus:border-indigo-950 focus:ring-1 focus:ring-indigo-900/30 placeholder-slate-500 ${focusRing}`}
             />
           </div>
         </div>
@@ -194,21 +197,21 @@ export function AdasChatPanel({
                 CONSOLE OUTPUT
               </p>
               <div className="flex flex-wrap gap-1.5">
-                <Badge variant="outline" className="rounded-sm border-slate-900 bg-slate-900/60 px-1.5 py-0 font-mono text-[9px] text-slate-400">
+                <Badge variant="outline" className="rounded-sm border-slate-900 bg-slate-900/60 px-1.5 py-0 font-mono text-[10px] text-slate-400">
                   mode: {mode}
                 </Badge>
-                <Badge variant="outline" className="rounded-sm border-slate-900 bg-slate-900/60 px-1.5 py-0 font-mono text-[9px] text-slate-400">
+                <Badge variant="outline" className="rounded-sm border-slate-900 bg-slate-900/60 px-1.5 py-0 font-mono text-[10px] text-slate-400">
                   prov: {provider}
                 </Badge>
                 {model.length > 0 ? (
-                  <Badge variant="outline" className="rounded-sm border-slate-900 bg-slate-900/60 px-1.5 py-0 font-mono text-[9px] text-indigo-400">
+                  <Badge variant="outline" className="rounded-sm border-slate-900 bg-slate-900/60 px-1.5 py-0 font-mono text-[10px] text-indigo-400">
                     model: {model.replace("-mini", "")}
                   </Badge>
                 ) : null}
               </div>
             </div>
             
-            <div className="max-h-72 overflow-y-auto space-y-3 text-xs leading-relaxed text-slate-350 font-mono bg-slate-950/40 p-2 rounded">
+            <div className="max-h-72 overflow-y-auto space-y-3 text-xs leading-relaxed text-slate-300 font-mono bg-slate-950/40 p-2 rounded">
               <ReactMarkdown
                 components={{
                   p: ({ children }) => <p className="mb-2 last:mb-0 text-slate-300">{children}</p>,
