@@ -116,7 +116,15 @@ Privacy and architecture notes:
 - Validation reruns locally against currently loaded normalized JSON
 - ADAS Chat answers are based on the currently loaded model and deterministic validation evidence
 
-This upload feature supports **normalized JSON only**. Native IFC ingestion is intentionally disabled until a real parser replaces the former simulated demo path.
+The model upload supports normalized JSON and native IFC STEP files. IFC ingestion runs through the `web-ifc` WASM parser on a Node.js API route and currently extracts:
+
+- `IfcBuildingStorey`, `IfcSpace`, and `IfcDoor` entities
+- space floor area from `IfcElementQuantity` / `IfcQuantityArea`
+- door width from `OverallWidth`
+- storey containment from `IfcRelContainedInSpatialStructure` and direct `IfcRelAggregates`
+- explicit space-to-door connectivity from `IfcRelSpaceBoundary`
+
+The parser does not infer missing room semantics or fabricate connectivity. Unknown room classifications and absent boundary/width data are returned as diagnostics and remain unknown to the deterministic layer.
 
 ## Known Limitations
 
