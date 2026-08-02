@@ -42,6 +42,6 @@ export function buildAdasPrompt(input: TrustedAdasChatInput): string {
     "",
     `User question: ${input.userQuestion}`,
     "",
-    "Answer using only the provided evidence. Include element IDs and requirement IDs in claims where relevant."
+    "Answer using only the provided evidence. Return only the required JSON object and cite existing requirement and affected element IDs."
   ].join("\n");
 }
