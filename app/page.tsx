@@ -30,6 +30,7 @@ import {
   validateUploadedRequirements
 } from "@/domain/uploadHelpers";
 import { validateWithDeterministicRules } from "@/domain/validationPipeline";
+import type { IfcParseDiagnostics } from "@/domain/ifcParser";
 import type { NormalizedModel, Requirement } from "@/domain/types";
 
 type DataSourceStatus = "sample" | "uploaded";
@@ -44,6 +45,8 @@ export default function Home() {
   const [requirementsError, setRequirementsError] = useState("");
   const [modelFilename, setModelFilename] = useState("");
   const [requirementsFilename, setRequirementsFilename] = useState("");
+  const [isParsingIfc, setIsParsingIfc] = useState(false);
+  const [ifcDiagnostics, setIfcDiagnostics] = useState<IfcParseDiagnostics | null>(null);
 
   // Interactive Selection States
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -112,6 +115,38 @@ export default function Home() {
 
   // File parsers
   const handleModelFile = useCallback(async (file: File) => {
+    if (file.name.toLowerCase().endsWith(".ifc")) {
+      setIsParsingIfc(true);
+      setModelError("");
+      setIfcDiagnostics(null);
+      try {
+        const body = new FormData();
+        body.append("file", file);
+        const response = await fetch("/api/ifc", { method: "POST", body });
+        const payload = await response.json() as {
+          model?: unknown;
+          diagnostics?: IfcParseDiagnostics;
+          error?: string;
+        };
+        if (!response.ok || payload.model === undefined || payload.diagnostics === undefined) {
+          throw new Error(payload.error ?? "The IFC model could not be parsed.");
+        }
+        const validationResult = validateUploadedModel(payload.model);
+        if (!validationResult.success) throw new Error(validationResult.error);
+
+        setModelData(validationResult.data);
+        setModelSource("uploaded");
+        setModelFilename(file.name);
+        setIfcDiagnostics(payload.diagnostics);
+        handleDeselect();
+      } catch (error) {
+        setModelError(error instanceof Error ? error.message : "The IFC model could not be parsed.");
+      } finally {
+        setIsParsingIfc(false);
+      }
+      return;
+    }
+
     const rawText = await file.text();
     const parseResult = parseUploadedJson(rawText);
     if (!parseResult.success) {
@@ -129,6 +164,7 @@ export default function Home() {
     setModelSource("uploaded");
     setModelFilename(file.name);
     setModelError("");
+    setIfcDiagnostics(null);
     handleDeselect();
   }, [handleDeselect]);
 
@@ -155,7 +191,9 @@ export default function Home() {
   // Drag and drop zone configurations
   const modelDropzone = useDropzone({
     accept: {
-      "application/json": [".json"]
+      "application/json": [".json"],
+      "application/octet-stream": [".ifc"],
+      "text/plain": [".ifc"]
     },
     maxFiles: 1,
     multiple: false,
@@ -188,6 +226,7 @@ export default function Home() {
     setRequirementsError("");
     setModelFilename("");
     setRequirementsFilename("");
+    setIfcDiagnostics(null);
     handleDeselect();
   }
 
@@ -442,7 +481,7 @@ ${res.evidence
             <Card className="shadow-md">
               <CardHeader className="pb-2 text-left">
                 <CardTitle className="text-sm">BIM / CAD Extract Connector</CardTitle>
-                <CardDescription className="text-xs">Upload a validated normalized BIM JSON export. Native IFC ingestion is coming next.</CardDescription>
+                <CardDescription className="text-xs">Parse native IFC models server-side or upload the normalized BIM JSON contract.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="grid gap-3 text-xs md:grid-cols-2">
@@ -458,10 +497,15 @@ ${res.evidence
                     <div className="flex items-start gap-3">
                       <UploadCloud className="mt-0.5 h-4 w-4 text-slate-500 flex-shrink-0" />
                       <div className="space-y-1">
-                        <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">Upload Model JSON</p>
-                        <p className="text-[10px] text-slate-500">Validate and load a normalized BIM contract file.</p>
+                        <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">Upload Model (IFC / JSON)</p>
+                        <p className="text-[10px] text-slate-500">Extract real storeys, spaces, doors, quantities and boundaries from IFC.</p>
                       </div>
                     </div>
+                    {isParsingIfc && (
+                      <p className="mt-3 flex items-center gap-1.5 text-[10px] font-semibold text-indigo-500">
+                        <RefreshCw className="h-3 w-3 animate-spin" /> Parsing IFC with web-ifc…
+                      </p>
+                    )}
                     {modelFilename && (
                       <p className="text-[10px] font-mono text-indigo-500 mt-3 truncate font-semibold">Active: {modelFilename}</p>
                     )}
@@ -490,6 +534,16 @@ ${res.evidence
                     {requirementsError && <p className="text-[10px] text-rose-500 mt-2 font-semibold">{requirementsError}</p>}
                   </div>
                 </div>
+                {ifcDiagnostics && (
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 text-left text-[10px] dark:border-emerald-950/50 dark:bg-emerald-950/10">
+                    <p className="font-semibold text-emerald-700 dark:text-emerald-400">
+                      {ifcDiagnostics.schema}: {ifcDiagnostics.storeysFound} storeys · {ifcDiagnostics.spacesFound} spaces · {ifcDiagnostics.doorsFound} doors · {ifcDiagnostics.boundariesFound} direct boundaries
+                    </p>
+                    {ifcDiagnostics.warnings.map((warning) => (
+                      <p key={warning} className="mt-1 text-amber-700 dark:text-amber-400">Warning: {warning}</p>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </section>
