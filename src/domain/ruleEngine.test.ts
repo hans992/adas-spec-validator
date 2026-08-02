@@ -201,4 +201,19 @@ describe("runDeterministicValidation", () => {
     expect(result.status).toBe("unknown");
     expect(result.summary).toContain("missing width");
   });
+
+  it("marks a requirement not applicable when no target rooms exist", () => {
+    const requirements: Requirement[] = [{
+      id: "req-8",
+      title: "Meeting rooms must be at least 12 sqm",
+      type: "minimum_room_area",
+      severity: "warning",
+      roomType: "meeting_room",
+      minAreaSqm: 12
+    }];
+
+    const [result] = runDeterministicValidation(baseModel, requirements);
+    expect(result.status).toBe("not_applicable");
+    expect(result.affectedElementIds).toEqual([]);
+  });
 });
