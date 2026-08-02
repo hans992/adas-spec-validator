@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Brain, Terminal, Activity, ArrowRight, CornerDownRight } from "lucide-react";
-import type { NormalizedModel, ValidationResult } from "@/domain/types";
+import type { NormalizedModel, Requirement } from "@/domain/types";
 import type { AdasRole } from "@/ai/types";
 import ReactMarkdown from "react-markdown";
 import { Alert } from "@/components/ui/alert";
@@ -23,13 +23,13 @@ const exampleQuestions = [
 
 interface AdasChatPanelProps {
   normalizedModel: NormalizedModel;
-  validationResults: ValidationResult[];
+  requirements: Requirement[];
   onSelectElement?: (id: string, type: "room" | "door") => void;
 }
 
 export function AdasChatPanel({
   normalizedModel,
-  validationResults,
+  requirements,
   onSelectElement
 }: AdasChatPanelProps) {
   const [selectedRole, setSelectedRole] = useState<AdasRole>("Design Engineer");
@@ -61,7 +61,7 @@ export function AdasChatPanel({
           userQuestion: question,
           selectedRole,
           normalizedModel,
-          validationResults
+          requirements
         })
       });
 
