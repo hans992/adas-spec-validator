@@ -41,8 +41,9 @@ function evaluateMinimumRoomArea(
   model: NormalizedModel,
   requirement: Extract<Requirement, { type: "minimum_room_area" }>
 ): ValidationResult[] {
-  return model.rooms
-    .filter((room) => room.roomType === requirement.roomType)
+  const targetRooms = model.rooms.filter((room) => room.roomType === requirement.roomType);
+  if (targetRooms.length === 0) return [notApplicableResult(requirement, requirement.roomType)];
+  return targetRooms
     .map((room) => {
       if (room.areaSqm === undefined) {
         return {
@@ -95,9 +96,32 @@ function evaluateMinimumDoorWidthForRoomType(
 ): ValidationResult[] {
   const doorById = new Map<string, Door>(model.doors.map((door) => [door.id, door]));
 
-  return model.rooms
-    .filter((room) => room.roomType === requirement.roomType)
+  const targetRooms = model.rooms.filter((room) => room.roomType === requirement.roomType);
+  if (targetRooms.length === 0) return [notApplicableResult(requirement, requirement.roomType)];
+  return targetRooms
     .map((room) => validateRoomDoorWidths(room, requirement, doorById));
+}
+
+function notApplicableResult(
+  requirement: Requirement,
+  roomType: Room["roomType"]
+): ValidationResult {
+  return {
+    ruleId: `${requirement.type}:target-set`,
+    requirementId: requirement.id,
+    requirementTitle: requirement.title,
+    elementType: "model",
+    status: "not_applicable",
+    severity: requirement.severity,
+    summary: `Requirement is not applicable because the model contains no ${roomType} rooms.`,
+    affectedElementIds: [],
+    evidence: [{
+      message: "No elements matched the requirement target selector.",
+      field: "room.roomType",
+      observed: 0,
+      expected: roomType
+    }]
+  };
 }
 
 function validateRoomDoorWidths(
