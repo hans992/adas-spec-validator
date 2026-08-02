@@ -3,11 +3,21 @@ import { z } from "zod";
 import { getAdasChatAnswer } from "@/ai/aiClient";
 import { adasChatRequestSchema } from "@/ai/types";
 import { runDeterministicValidation } from "@/domain/ruleEngine";
+import { consumeChatRateLimit } from "@/ai/chatRateLimit";
 
 const MAX_CHAT_BODY_BYTES = 1_000_000;
 
 export async function POST(request: Request) {
   try {
+    const clientKey = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anonymous";
+    const rateLimit = consumeChatRateLimit(clientKey);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: "Too many chat requests. Please try again shortly." },
+        { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } }
+      );
+    }
+
     const declaredLength = Number(request.headers.get("content-length") ?? "0");
     if (Number.isFinite(declaredLength) && declaredLength > MAX_CHAT_BODY_BYTES) {
       return NextResponse.json({ error: "Chat request payload is too large." }, { status: 413 });
