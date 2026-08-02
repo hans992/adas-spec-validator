@@ -2,6 +2,7 @@ import { ADAS_SYSTEM_PROMPT } from "@/ai/adasSystemPrompt";
 import { buildAdasPrompt } from "@/ai/buildAdasPrompt";
 import { buildFallbackAnswer } from "@/ai/fallbackAnswer";
 import type { AdasChatResponse, TrustedAdasChatInput } from "@/ai/types";
+import { parseAndVerifyProviderAnswer } from "@/ai/verifyProviderAnswer";
 
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 const DEFAULT_OPENAI_MODEL = "gpt-4o-mini";
@@ -74,7 +75,8 @@ export async function getAdasChatAnswer(input: TrustedAdasChatInput): Promise<Ad
               parts: [{ text: ADAS_SYSTEM_PROMPT }]
             },
             generationConfig: {
-              temperature: 0.1
+              temperature: 0.1,
+              responseMimeType: "application/json"
             },
             contents: [
               {
@@ -104,7 +106,8 @@ export async function getAdasChatAnswer(input: TrustedAdasChatInput): Promise<Ad
         .join("")
         .trim();
 
-      if (content.length === 0) {
+      const verified = parseAndVerifyProviderAnswer(content, input);
+      if (verified === null) {
         return {
           answer: buildFallbackAnswer(input),
           metadata: { mode: "fallback", provider: "deterministic" }
@@ -112,7 +115,7 @@ export async function getAdasChatAnswer(input: TrustedAdasChatInput): Promise<Ad
       }
 
       return {
-        answer: content,
+        answer: verified.answer,
         metadata: { mode: "ai", provider: "gemini", model: selection.model }
       };
     }
@@ -127,6 +130,7 @@ export async function getAdasChatAnswer(input: TrustedAdasChatInput): Promise<Ad
       body: JSON.stringify({
         model: selection.model,
         temperature: 0.1,
+        response_format: { type: "json_object" },
         messages: [
           { role: "system", content: ADAS_SYSTEM_PROMPT },
           { role: "user", content: userPrompt }
@@ -146,7 +150,8 @@ export async function getAdasChatAnswer(input: TrustedAdasChatInput): Promise<Ad
     };
     const content = data.choices?.[0]?.message?.content?.trim();
 
-    if (content === undefined || content.length === 0) {
+    const verified = content === undefined ? null : parseAndVerifyProviderAnswer(content, input);
+    if (verified === null) {
       return {
         answer: buildFallbackAnswer(input),
         metadata: { mode: "fallback", provider: "deterministic" }
@@ -154,7 +159,7 @@ export async function getAdasChatAnswer(input: TrustedAdasChatInput): Promise<Ad
     }
 
     return {
-      answer: content,
+      answer: verified.answer,
       metadata: { mode: "ai", provider: "openai", model: selection.model }
     };
   } catch {
