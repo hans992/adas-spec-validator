@@ -32,4 +32,28 @@ describe("upload helpers", () => {
     const result = validateWithDeterministicRules(sampleModelData, sampleRequirements);
     expect(result.results.length).toBeGreaterThan(0);
   });
+
+  it("rejects duplicate element ids across collections", () => {
+    const result = validateUploadedModel({
+      levels: [{ id: "shared", name: "Level" }],
+      rooms: [{ id: "shared", name: "Room", levelId: "shared", roomType: "office" }],
+      doors: []
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects unresolved and one-sided relationships", () => {
+    const unresolved = validateUploadedModel({
+      levels: [{ id: "level-1", name: "Level" }],
+      rooms: [{ id: "room-1", name: "Room", levelId: "level-1", roomType: "office", connectedDoorIds: ["missing"] }],
+      doors: []
+    });
+    const oneSided = validateUploadedModel({
+      levels: [{ id: "level-1", name: "Level" }],
+      rooms: [{ id: "room-1", name: "Room", levelId: "level-1", roomType: "office", connectedDoorIds: ["door-1"] }],
+      doors: [{ id: "door-1", name: "Door", levelId: "level-1", connectedRoomIds: [] }]
+    });
+    expect(unresolved.success).toBe(false);
+    expect(oneSided.success).toBe(false);
+  });
 });
