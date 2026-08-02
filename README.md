@@ -9,7 +9,7 @@ The repository includes a C# extractor prototype boundary and does **not** claim
 
 - Deterministic rule engine for CAD/BIM-style requirements
 - Evidence-backed validation results
-- Explicit `pass` / `fail` / `unknown` status handling
+- Explicit `pass` / `fail` / `unknown` / `not_applicable` status handling
 - Role-aware ADAS chat constrained to validation evidence
 - Gemini/OpenAI/fallback provider support with deterministic priority
 - Dark mode support for dashboard readability
@@ -103,7 +103,7 @@ AI responses remain evidence-constrained and do not override deterministic valid
 
 The dashboard includes a **Data Source** module for uploading normalized JSON files:
 
-- Upload normalized **model JSON** (`levels`, `rooms`, `doors`)
+- Upload normalized **model JSON** (`levels`, `rooms`, `doors`) with cross-reference integrity checks
 - Upload **requirements JSON** (deterministic requirement array)
 - Files are parsed and validated client-side with Zod before use
 - Invalid uploads show clear errors and do not replace current data
@@ -116,8 +116,7 @@ Privacy and architecture notes:
 - Validation reruns locally against currently loaded normalized JSON
 - ADAS Chat answers are based on the currently loaded model and deterministic validation evidence
 
-This upload feature supports **normalized JSON only**.  
-It does not claim Revit, AutoCAD, or IFC file ingestion.
+This upload feature supports **normalized JSON only**. Native IFC ingestion is intentionally disabled until a real parser replaces the former simulated demo path.
 
 ## Known Limitations
 
