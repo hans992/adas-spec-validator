@@ -1,4 +1,4 @@
-export type RoomType = "stockroom" | "office" | "meeting_room" | "corridor";
+export type RoomType = "stockroom" | "office" | "meeting_room" | "corridor" | "unknown";
 
 export type ValidationStatus = "pass" | "fail" | "unknown" | "not_applicable";
 export type ValidationSeverity = "info" | "warning" | "critical";
