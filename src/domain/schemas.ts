@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 const validationSeveritySchema = z.enum(["info", "warning", "critical"]);
-const roomTypeSchema = z.enum(["stockroom", "office", "meeting_room", "corridor"]);
+const roomTypeSchema = z.enum(["stockroom", "office", "meeting_room", "corridor", "unknown"]);
 
 const levelSchema = z.object({
   id: z.string().min(1),
