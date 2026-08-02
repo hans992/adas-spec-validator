@@ -1,10 +1,11 @@
 import { ADAS_SYSTEM_PROMPT } from "@/ai/adasSystemPrompt";
 import { buildAdasPrompt } from "@/ai/buildAdasPrompt";
 import { buildFallbackAnswer } from "@/ai/fallbackAnswer";
-import type { AdasChatRequest, AdasChatResponse } from "@/ai/types";
+import type { AdasChatResponse, TrustedAdasChatInput } from "@/ai/types";
 
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 const DEFAULT_OPENAI_MODEL = "gpt-4o-mini";
+const PROVIDER_TIMEOUT_MS = 15_000;
 
 type ProviderSelection =
   | { provider: "gemini"; apiKey: string; model: string }
@@ -40,7 +41,7 @@ export function selectAiProvider(env: ProviderEnv): ProviderSelection {
   return { provider: "deterministic" };
 }
 
-export async function getAdasChatAnswer(input: AdasChatRequest): Promise<AdasChatResponse> {
+export async function getAdasChatAnswer(input: TrustedAdasChatInput): Promise<AdasChatResponse> {
   const selection = selectAiProvider({
     GOOGLE_GENERATIVE_AI_API_KEY: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
     GOOGLE_GENERATION_MODEL: process.env.GOOGLE_GENERATION_MODEL,
@@ -67,6 +68,7 @@ export async function getAdasChatAnswer(input: AdasChatRequest): Promise<AdasCha
           headers: {
             "Content-Type": "application/json"
           },
+          signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
           body: JSON.stringify({
             systemInstruction: {
               parts: [{ text: ADAS_SYSTEM_PROMPT }]
@@ -121,6 +123,7 @@ export async function getAdasChatAnswer(input: AdasChatRequest): Promise<AdasCha
         "Content-Type": "application/json",
         Authorization: `Bearer ${selection.apiKey}`
       },
+      signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
       body: JSON.stringify({
         model: selection.model,
         temperature: 0.1,
