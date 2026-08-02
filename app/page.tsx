@@ -11,7 +11,6 @@ import {
   UploadCloud,
   FileDown,
   RefreshCw,
-  Terminal,
   ChevronRight
 } from "lucide-react";
 
@@ -25,7 +24,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 import { sampleModelData, sampleRequirements } from "@/domain/sampleData";
-import { mockIfcModelData } from "@/domain/mockIfcData";
 import {
   parseUploadedJson,
   validateUploadedModel,
@@ -55,11 +53,6 @@ export default function Home() {
   // Tab selections
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<"visualizer" | "json">("visualizer");
 
-  // IFC Parser Simulated States
-  const [isParsingIfc, setIsParsingIfc] = useState(false);
-  const [ifcLogs, setIfcLogs] = useState<string[]>([]);
-  const [ifcProgress, setIfcProgress] = useState(0);
-
   // Run the deterministic validation pipeline
   const { model, requirements, results } = useMemo(() => {
     try {
@@ -74,6 +67,7 @@ export default function Home() {
   const passCount = results.filter((result) => result.status === "pass").length;
   const failCount = results.filter((result) => result.status === "fail").length;
   const unknownCount = results.filter((result) => result.status === "unknown").length;
+  const notApplicableCount = results.filter((result) => result.status === "not_applicable").length;
   const criticalIssuesCount = results.filter(
     (result) => result.status === "fail" && result.severity === "critical"
   ).length;
@@ -118,12 +112,6 @@ export default function Home() {
 
   // File parsers
   const handleModelFile = useCallback(async (file: File) => {
-    // Check if it's an IFC file
-    if (file.name.toLowerCase().endsWith(".ifc")) {
-      triggerIfcSimulatedParser(file.name, file.size);
-      return;
-    }
-
     const rawText = await file.text();
     const parseResult = parseUploadedJson(rawText);
     if (!parseResult.success) {
@@ -167,9 +155,7 @@ export default function Home() {
   // Drag and drop zone configurations
   const modelDropzone = useDropzone({
     accept: {
-      "application/json": [".json"],
-      "application/octet-stream": [".ifc"],
-      "text/plain": [".ifc"]
+      "application/json": [".json"]
     },
     maxFiles: 1,
     multiple: false,
@@ -192,43 +178,6 @@ export default function Home() {
       }
     }
   });
-
-  // Simulated IFC parser progress trigger
-  function triggerIfcSimulatedParser(filename: string, sizeBytes: number) {
-    setIsParsingIfc(true);
-    setIfcProgress(0);
-    setIfcLogs([]);
-
-    const logMessages = [
-      `[INFO] Initializing IFC boundary extractor boundary...`,
-      `[OK] File size: ${(sizeBytes / 1024).toFixed(2)} KB, format: IFC-SPF (ISO-10303-21)`,
-      `[INFO] Parsing IFC Spatial Structure (IfcProject -> IfcBuildingStorey)...`,
-      `[OK] Found 5 spatial zones (IfcSpace) in hierarchy`,
-      `[INFO] Extracting spatial element connectivity boundaries (IfcRelSpaceBoundary)...`,
-      `[OK] Successfully bound 5 doors (IfcDoor) to spaces`,
-      `[INFO] Normalizing facts to BIM Compliance contract...`,
-      `[SUCCESS] Extraction complete! 5 rooms & 5 doors mapped to validation sandbox.`
-    ];
-
-    let currentStep = 0;
-    const interval = setInterval(() => {
-      if (currentStep < logMessages.length) {
-        setIfcLogs((prev) => [...prev, logMessages[currentStep]]);
-        setIfcProgress((currentStep + 1) * (100 / logMessages.length));
-        currentStep++;
-      } else {
-        clearInterval(interval);
-        setTimeout(() => {
-          setModelData(mockIfcModelData);
-          setModelSource("uploaded");
-          setModelFilename(filename);
-          setModelError("");
-          setIsParsingIfc(false);
-          handleDeselect();
-        }, 600);
-      }
-    }, 300);
-  }
 
   function resetToSampleData() {
     setModelData(sampleModelData);
@@ -258,8 +207,16 @@ Compliance Score: ${complianceRate}% (${passCount} Pass / ${failCount} Fail / ${
 ${requirements
   .map((req, idx) => {
     const reqResults = results.filter((r) => r.requirementId === req.id);
-    const pass = reqResults.every((r) => r.status === "pass");
-    return `${idx + 1}. [${pass ? "COMPLIANT" : "VIOLATION"}] **${req.title}** (Severity: ${req.severity})`;
+    const status = reqResults.length === 0
+      ? "UNKNOWN"
+      : reqResults.every((r) => r.status === "not_applicable")
+        ? "NOT APPLICABLE"
+        : reqResults.every((r) => r.status === "pass")
+          ? "COMPLIANT"
+          : reqResults.some((r) => r.status === "fail")
+            ? "VIOLATION"
+            : "UNKNOWN";
+    return `${idx + 1}. [${status}] **${req.title}** (Severity: ${req.severity})`;
   })
   .join("\n")}
 
@@ -382,7 +339,7 @@ ${res.evidence
           {[
             { label: "Valid Passes", value: passCount, color: "text-emerald-500 bg-emerald-500/10", border: "border-emerald-200/50 dark:border-emerald-950/50", criticalCount: undefined as number | undefined },
             { label: "Detected Violations", value: failCount, color: "text-rose-500 bg-rose-500/10", border: "border-rose-200/50 dark:border-rose-950/50", criticalCount: criticalIssuesCount },
-            { label: "Unknown (Missing Parameters)", value: unknownCount, color: "text-amber-500 bg-amber-500/10", border: "border-amber-200/50 dark:border-amber-950/50", criticalCount: undefined as number | undefined }
+            { label: "Unknown / N/A", value: unknownCount + notApplicableCount, color: "text-amber-500 bg-amber-500/10", border: "border-amber-200/50 dark:border-amber-950/50", criticalCount: undefined as number | undefined }
           ].map((stat, i) => (
             <Card key={i} className={`p-4 flex flex-col justify-between shadow-md border ${stat.border}`}>
               <div className="flex items-center justify-between">
@@ -443,40 +400,6 @@ ${res.evidence
                 
                 {/* SVG/JSON Tab Panel */}
                 <AnimatePresence mode="wait">
-                  {isParsingIfc ? (
-                    <motion.div
-                      key="ifc-parsing"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="absolute inset-0 bg-slate-950/95 z-50 flex flex-col p-6 font-mono text-left text-indigo-400 border border-indigo-900 rounded-xl"
-                    >
-                      <div className="flex items-center justify-between mb-4 border-b border-slate-900 pb-2.5">
-                        <p className="text-xs uppercase tracking-widest font-extrabold flex items-center gap-1.5">
-                          <Terminal className="h-4 w-4 animate-spin text-indigo-500" />
-                          IFC BINDERY BOUNDARY EXTRACTOR
-                        </p>
-                        <span className="text-xs text-indigo-300 font-bold">{Math.round(ifcProgress)}%</span>
-                      </div>
-                      
-                      <div className="w-full bg-slate-900 h-1 rounded overflow-hidden mb-4">
-                        <motion.div
-                          className="h-full bg-indigo-500 shadow-md"
-                          animate={{ width: `${ifcProgress}%` }}
-                        />
-                      </div>
-                      
-                      <div className="flex-1 overflow-y-auto space-y-1.5 text-[11px] leading-relaxed text-indigo-300/90 max-h-[300px]">
-                        {ifcLogs.map((log, idx) => (
-                          <div key={idx} className="flex items-start gap-1">
-                            <span className="text-indigo-600/70 select-none">&gt;&gt;</span>
-                            <span>{log}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </motion.div>
-                  ) : null}
-
                   {activeWorkspaceTab === "visualizer" ? (
                     <motion.div
                       key="map-tab"
@@ -519,7 +442,7 @@ ${res.evidence
             <Card className="shadow-md">
               <CardHeader className="pb-2 text-left">
                 <CardTitle className="text-sm">BIM / CAD Extract Connector</CardTitle>
-                <CardDescription className="text-xs">Drag JSON or .ifc files to ingest Revit boundaries locally.</CardDescription>
+                <CardDescription className="text-xs">Upload a validated normalized BIM JSON export. Native IFC ingestion is coming next.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="grid gap-3 text-xs md:grid-cols-2">
@@ -535,8 +458,8 @@ ${res.evidence
                     <div className="flex items-start gap-3">
                       <UploadCloud className="mt-0.5 h-4 w-4 text-slate-500 flex-shrink-0" />
                       <div className="space-y-1">
-                        <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">Upload Model (JSON/IFC)</p>
-                        <p className="text-[10px] text-slate-500">Extract elements from IFC boundary or Zod JSON files.</p>
+                        <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">Upload Model JSON</p>
+                        <p className="text-[10px] text-slate-500">Validate and load a normalized BIM contract file.</p>
                       </div>
                     </div>
                     {modelFilename && (
@@ -592,7 +515,7 @@ ${res.evidence
                 <div className="max-h-[500px] overflow-y-auto pr-1 space-y-3">
                   {results.map((result, resultIndex) => {
                     const isFailing = result.status === "fail";
-                    const isUnknown = result.status === "unknown";
+                    const isUnknown = result.status === "unknown" || result.status === "not_applicable";
                     
                     return (
                       <div
