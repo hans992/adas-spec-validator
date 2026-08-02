@@ -687,7 +687,7 @@ ${res.evidence
             {/* ADAS Chat Panel AI Console */}
             <AdasChatPanel
               normalizedModel={model}
-              validationResults={results}
+              requirements={requirements}
               onSelectElement={handleSelectElement}
             />
 
