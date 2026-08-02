@@ -30,6 +30,7 @@ import {
   validateUploadedRequirements
 } from "@/domain/uploadHelpers";
 import { validateWithDeterministicRules } from "@/domain/validationPipeline";
+import { calculateComplianceMetrics } from "@/domain/complianceMetrics";
 import type { IfcParseDiagnostics } from "@/domain/ifcParser";
 import type { NormalizedModel, Requirement } from "@/domain/types";
 
@@ -66,17 +67,12 @@ export default function Home() {
     }
   }, [modelData, requirementsData]);
 
-  // Statistics counters
-  const passCount = results.filter((result) => result.status === "pass").length;
-  const failCount = results.filter((result) => result.status === "fail").length;
-  const unknownCount = results.filter((result) => result.status === "unknown").length;
-  const notApplicableCount = results.filter((result) => result.status === "not_applicable").length;
-  const criticalIssuesCount = results.filter(
-    (result) => result.status === "fail" && result.severity === "critical"
-  ).length;
-
-  const totalResultsCount = passCount + failCount + unknownCount;
-  const complianceRate = totalResultsCount > 0 ? Math.round((passCount / totalResultsCount) * 100) : 0;
+  const metrics = useMemo(
+    () => calculateComplianceMetrics(requirements, results),
+    [requirements, results]
+  );
+  const passRateDisplay = metrics.passRate === null ? "—" : `${metrics.passRate}%`;
+  const coverageDisplay = metrics.coverage === null ? "—" : `${metrics.coverage}%`;
 
   const dataSourceLabel =
     modelSource === "sample" && requirementsSource === "sample"
@@ -234,7 +230,10 @@ export default function Home() {
   function exportComplianceReport() {
     const reportMd = `# ADAS Spec Validator - Building Compliance Report
 Generated at: ${new Date().toLocaleString()}
-Compliance Score: ${complianceRate}% (${passCount} Pass / ${failCount} Fail / ${unknownCount} Unknown)
+Requirement Pass Rate: ${passRateDisplay} (${metrics.compliantRequirements} Compliant / ${metrics.violatedRequirements} Violated among determined requirements)
+Evaluation Coverage: ${coverageDisplay} (${metrics.determinedRequirements} Determined / ${metrics.applicableRequirements} Applicable)
+Critical Failed Requirements: ${metrics.criticalFailures}
+Not Applicable Requirements: ${metrics.notApplicableRequirements}
 
 ## Overview Metrics
 - Total Rooms Inspected: ${model.rooms.length}
@@ -243,19 +242,9 @@ Compliance Score: ${complianceRate}% (${passCount} Pass / ${failCount} Fail / ${
 - Total Evaluated Rule Specifications: ${requirements.length}
 
 ## Spec Compliance Breakdown
-${requirements
-  .map((req, idx) => {
-    const reqResults = results.filter((r) => r.requirementId === req.id);
-    const status = reqResults.length === 0
-      ? "UNKNOWN"
-      : reqResults.every((r) => r.status === "not_applicable")
-        ? "NOT APPLICABLE"
-        : reqResults.every((r) => r.status === "pass")
-          ? "COMPLIANT"
-          : reqResults.some((r) => r.status === "fail")
-            ? "VIOLATION"
-            : "UNKNOWN";
-    return `${idx + 1}. [${status}] **${req.title}** (Severity: ${req.severity})`;
+${metrics.assessments
+  .map((assessment, idx) => {
+    return `${idx + 1}. [${assessment.outcome.toUpperCase().replace("_", " ")}] **${assessment.requirement.title}** (Severity: ${assessment.requirement.severity})`;
   })
   .join("\n")}
 
@@ -350,9 +339,9 @@ ${res.evidence
           {/* Radial progress ring stats card */}
           <Card className="flex items-center justify-between p-4 overflow-hidden shadow-md">
             <div className="space-y-1 text-left">
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Storey Compliance</p>
-              <p className="text-2xl font-extrabold tracking-tight">{passCount} / {totalResultsCount} Passed</p>
-              <p className="text-[10px] text-slate-500">Deterministic requirements satisfied</p>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Requirement Pass Rate</p>
+              <p className="text-2xl font-extrabold tracking-tight">{passRateDisplay}</p>
+              <p className="text-[10px] text-slate-500">{metrics.compliantRequirements} of {metrics.determinedRequirements} determined requirements pass</p>
             </div>
             <div className="relative flex items-center justify-center">
               <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
@@ -362,23 +351,23 @@ ${res.evidence
                   cy="18"
                   r="16"
                   fill="none"
-                  stroke={complianceRate >= 80 ? "#10b981" : complianceRate >= 50 ? "#f59e0b" : "#f43f5e"}
+                  stroke={(metrics.passRate ?? 0) >= 80 ? "#10b981" : (metrics.passRate ?? 0) >= 50 ? "#f59e0b" : "#f43f5e"}
                   strokeWidth="3"
                   strokeDasharray="100"
                   initial={{ strokeDashoffset: 100 }}
-                  animate={{ strokeDashoffset: 100 - complianceRate }}
+                  animate={{ strokeDashoffset: 100 - (metrics.passRate ?? 0) }}
                   transition={{ duration: 1.2, ease: "easeOut" }}
                 />
               </svg>
-              <span className="absolute font-mono text-xs font-bold">{complianceRate}%</span>
+              <span className="absolute font-mono text-xs font-bold">{passRateDisplay}</span>
             </div>
           </Card>
 
           {/* Compliance counters */}
           {[
-            { label: "Valid Passes", value: passCount, color: "text-emerald-500 bg-emerald-500/10", border: "border-emerald-200/50 dark:border-emerald-950/50", criticalCount: undefined as number | undefined },
-            { label: "Detected Violations", value: failCount, color: "text-rose-500 bg-rose-500/10", border: "border-rose-200/50 dark:border-rose-950/50", criticalCount: criticalIssuesCount },
-            { label: "Unknown / N/A", value: unknownCount + notApplicableCount, color: "text-amber-500 bg-amber-500/10", border: "border-amber-200/50 dark:border-amber-950/50", criticalCount: undefined as number | undefined }
+            { label: "Evaluation Coverage", value: coverageDisplay, detail: `${metrics.unknownRequirements} unknown`, color: "text-indigo-500 bg-indigo-500/10", border: "border-indigo-200/50 dark:border-indigo-950/50", criticalCount: undefined as number | undefined },
+            { label: "Violated Requirements", value: metrics.violatedRequirements, detail: `${metrics.criticalFailures} critical`, color: "text-rose-500 bg-rose-500/10", border: "border-rose-200/50 dark:border-rose-950/50", criticalCount: metrics.criticalFailures },
+            { label: "Not Applicable", value: metrics.notApplicableRequirements, detail: "Excluded from rates", color: "text-amber-500 bg-amber-500/10", border: "border-amber-200/50 dark:border-amber-950/50", criticalCount: undefined as number | undefined }
           ].map((stat, i) => (
             <Card key={i} className={`p-4 flex flex-col justify-between shadow-md border ${stat.border}`}>
               <div className="flex items-center justify-between">
@@ -387,6 +376,7 @@ ${res.evidence
               </div>
               <div className="mt-3 text-left">
                 <p className="text-3xl font-extrabold tracking-tight">{stat.value}</p>
+                <p className="mt-1 text-[10px] text-slate-500">{stat.detail}</p>
                 {stat.criticalCount !== undefined && (
                   <Badge variant="destructive" className="mt-2 text-[10px] py-0 font-semibold">
                     {stat.criticalCount} critical
