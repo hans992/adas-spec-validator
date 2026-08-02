@@ -22,6 +22,16 @@ export const adasChatResponseSchema = z.object({
   })
 });
 
+export const evidenceCitationSchema = z.object({
+  requirementId: z.string().min(1),
+  elementIds: z.array(z.string().min(1)).max(20)
+});
+
+export const providerAnswerSchema = z.object({
+  answer: z.string().trim().min(1).max(8000),
+  citations: z.array(evidenceCitationSchema).min(1).max(20)
+});
+
 export type AdasChatRequest = z.infer<typeof adasChatRequestSchema>;
 export interface TrustedAdasChatInput {
   userQuestion: string;
@@ -31,3 +41,4 @@ export interface TrustedAdasChatInput {
   validationResults: ValidationResult[];
 }
 export type AdasChatResponse = z.infer<typeof adasChatResponseSchema>;
+export type ProviderAnswer = z.infer<typeof providerAnswerSchema>;
