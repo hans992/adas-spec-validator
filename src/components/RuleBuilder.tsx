@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { PlusCircle, Shield, AlertCircle } from "lucide-react";
 import { requirementSchema } from "@/domain/schemas";
-import type { DoorQuantifier, Requirement, RoomType, ValidationSeverity } from "@/domain/types";
+import type { DoorQuantifier, LogicalOperator, Requirement, RoomType, ValidationSeverity } from "@/domain/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -15,7 +15,7 @@ interface RuleBuilderProps {
 }
 
 export function RuleBuilder({ onAddRequirement }: RuleBuilderProps) {
-  const [ruleType, setRuleType] = useState<"minimum_room_area" | "minimum_door_width_for_room_type" | "room_has_connected_door">("minimum_room_area");
+  const [ruleType, setRuleType] = useState<"minimum_room_area" | "minimum_door_width_for_room_type" | "room_has_connected_door" | "composite_room_rule">("minimum_room_area");
   const [title, setTitle] = useState("");
   const [severity, setSeverity] = useState<ValidationSeverity>("warning");
   const [roomType, setRoomType] = useState<RoomType>("stockroom");
@@ -24,6 +24,7 @@ export function RuleBuilder({ onAddRequirement }: RuleBuilderProps) {
   const [minDoorWidth, setMinDoorWidth] = useState(0.85);
   const [maxDoorWidth, setMaxDoorWidth] = useState<number | "">("");
   const [doorQuantifier, setDoorQuantifier] = useState<DoorQuantifier>("all");
+  const [logicalOperator, setLogicalOperator] = useState<LogicalOperator>("and");
 
   const [error, setError] = useState("");
 
@@ -60,12 +61,34 @@ export function RuleBuilder({ onAddRequirement }: RuleBuilderProps) {
         ...(maxDoorWidth === "" ? {} : { maxDoorWidthM: Number(maxDoorWidth) }),
         quantifier: doorQuantifier
       };
-    } else {
+    } else if (ruleType === "room_has_connected_door") {
       newReq = {
         id: uniqueId,
         title,
         type: "room_has_connected_door",
         severity
+      };
+    } else {
+      newReq = {
+        id: uniqueId,
+        title,
+        type: "composite_room_rule",
+        severity,
+        roomType,
+        operator: logicalOperator,
+        conditions: [
+          {
+            type: "room_area_range",
+            minAreaSqm: Number(minArea),
+            ...(maxArea === "" ? {} : { maxAreaSqm: Number(maxArea) })
+          },
+          {
+            type: "connected_door_width_range",
+            minDoorWidthM: Number(minDoorWidth),
+            ...(maxDoorWidth === "" ? {} : { maxDoorWidthM: Number(maxDoorWidth) }),
+            quantifier: doorQuantifier
+          }
+        ]
       };
     }
 
@@ -95,9 +118,13 @@ export function RuleBuilder({ onAddRequirement }: RuleBuilderProps) {
       setSeverity("warning");
       setRoomType("office");
       setMinDoorWidth(0.8);
-    } else {
+    } else if (presetType === "room_has_connected_door") {
       setTitle(`All corridors must be connected to doors`);
       setSeverity("warning");
+    } else {
+      setTitle("Office area and connected doors must satisfy the specification");
+      setSeverity("critical");
+      setRoomType("office");
     }
   }
 
@@ -117,7 +144,7 @@ export function RuleBuilder({ onAddRequirement }: RuleBuilderProps) {
         {/* Preset Rules */}
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Preset templates</p>
-          <div className="grid grid-cols-3 gap-1.5 text-xs">
+          <div className="grid grid-cols-2 gap-1.5 text-xs">
             <button
               type="button"
               onClick={() => handlePresetSelect("minimum_room_area")}
@@ -150,6 +177,17 @@ export function RuleBuilder({ onAddRequirement }: RuleBuilderProps) {
               }`}
             >
               Door Connect
+            </button>
+            <button
+              type="button"
+              onClick={() => handlePresetSelect("composite_room_rule")}
+              className={`rounded border p-1 text-center transition ${
+                ruleType === "composite_room_rule"
+                  ? "border-indigo-400 bg-indigo-50/50 text-indigo-600 dark:border-indigo-500 dark:bg-indigo-950/20 dark:text-indigo-400"
+                  : "border-slate-200 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800"
+              }`}
+            >
+              AND / OR
             </button>
           </div>
         </div>
@@ -210,8 +248,22 @@ export function RuleBuilder({ onAddRequirement }: RuleBuilderProps) {
             )}
           </div>
 
+          {ruleType === "composite_room_rule" && (
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Logical Operator
+              <select
+                value={logicalOperator}
+                onChange={(e) => setLogicalOperator(e.target.value as LogicalOperator)}
+                className={`mt-0.5 w-full rounded border border-slate-300 bg-white/70 px-2 py-1.5 text-xs normal-case dark:border-slate-800 dark:bg-slate-950 ${focusRing}`}
+              >
+                <option value="and">AND — both conditions must pass</option>
+                <option value="or">OR — either condition may pass</option>
+              </select>
+            </label>
+          )}
+
           {/* Dynamic Inputs */}
-          {ruleType === "minimum_room_area" && (
+          {(ruleType === "minimum_room_area" || ruleType === "composite_room_rule") && (
             <div className="space-y-2">
               <div className="flex justify-between text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">
                 <label htmlFor="rule-min-area">Minimum Area</label>
@@ -242,7 +294,7 @@ export function RuleBuilder({ onAddRequirement }: RuleBuilderProps) {
             </div>
           )}
 
-          {ruleType === "minimum_door_width_for_room_type" && (
+          {(ruleType === "minimum_door_width_for_room_type" || ruleType === "composite_room_rule") && (
             <div className="space-y-2">
               <div className="flex justify-between text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">
                 <label htmlFor="rule-min-door-width">Minimum Door Width</label>
