@@ -3,6 +3,20 @@ export type RoomType = "stockroom" | "office" | "meeting_room" | "corridor" | "u
 export type ValidationStatus = "pass" | "fail" | "unknown" | "not_applicable";
 export type ValidationSeverity = "info" | "warning" | "critical";
 export type DoorQuantifier = "any" | "all";
+export type LogicalOperator = "and" | "or";
+
+export type CompositeCondition =
+  | {
+      type: "room_area_range";
+      minAreaSqm: number;
+      maxAreaSqm?: number;
+    }
+  | {
+      type: "connected_door_width_range";
+      minDoorWidthM: number;
+      maxDoorWidthM?: number;
+      quantifier?: DoorQuantifier;
+    };
 
 export interface Level {
   id: string;
@@ -57,6 +71,15 @@ export type Requirement =
       title: string;
       type: "room_has_connected_door";
       severity: ValidationSeverity;
+    }
+  | {
+      id: string;
+      title: string;
+      type: "composite_room_rule";
+      severity: ValidationSeverity;
+      roomType: RoomType;
+      operator: LogicalOperator;
+      conditions: CompositeCondition[];
     };
 
 export interface EvidenceItem {
