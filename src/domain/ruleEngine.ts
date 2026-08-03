@@ -9,6 +9,7 @@ import type {
 const MIN_ROOM_AREA_RULE_ID = "MinimumRoomAreaRule";
 const MIN_DOOR_WIDTH_RULE_ID = "MinimumDoorWidthForRoomTypeRule";
 const ROOM_HAS_CONNECTED_DOOR_RULE_ID = "RoomHasConnectedDoorRule";
+const COMPOSITE_ROOM_RULE_ID = "CompositeRoomRule";
 
 export function runDeterministicValidation(
   model: NormalizedModel,
@@ -27,6 +28,9 @@ export function runDeterministicValidation(
       case "room_has_connected_door":
         output.push(...evaluateRoomHasConnectedDoor(model, requirement));
         break;
+      case "composite_room_rule":
+        output.push(...evaluateCompositeRoomRule(model, requirement));
+        break;
       default: {
         const exhaustiveCheck: never = requirement;
         throw new Error(`Unhandled requirement type: ${exhaustiveCheck}`);
@@ -35,6 +39,73 @@ export function runDeterministicValidation(
   }
 
   return output;
+}
+
+function evaluateCompositeRoomRule(
+  model: NormalizedModel,
+  requirement: Extract<Requirement, { type: "composite_room_rule" }>
+): ValidationResult[] {
+  const targetRooms = model.rooms.filter((room) => room.roomType === requirement.roomType);
+  if (targetRooms.length === 0) return [notApplicableResult(requirement, requirement.roomType)];
+
+  return targetRooms.map((room) => {
+    const scopedModel = { ...model, rooms: [room] };
+    const branchResults = requirement.conditions.map((condition, index) => {
+      if (condition.type === "room_area_range") {
+        return evaluateMinimumRoomArea(scopedModel, {
+          id: `${requirement.id}:condition-${index + 1}`,
+          title: requirement.title,
+          type: "minimum_room_area",
+          severity: requirement.severity,
+          roomType: requirement.roomType,
+          minAreaSqm: condition.minAreaSqm,
+          maxAreaSqm: condition.maxAreaSqm
+        })[0];
+      }
+      return evaluateMinimumDoorWidthForRoomType(scopedModel, {
+        id: `${requirement.id}:condition-${index + 1}`,
+        title: requirement.title,
+        type: "minimum_door_width_for_room_type",
+        severity: requirement.severity,
+        roomType: requirement.roomType,
+        minDoorWidthM: condition.minDoorWidthM,
+        maxDoorWidthM: condition.maxDoorWidthM,
+        quantifier: condition.quantifier
+      })[0];
+    });
+
+    const statuses = branchResults.map((result) => result.status);
+    const status = combineLogicalStatuses(requirement.operator, statuses);
+    const label = requirement.operator.toUpperCase();
+    return {
+      ruleId: COMPOSITE_ROOM_RULE_ID,
+      requirementId: requirement.id,
+      requirementTitle: requirement.title,
+      elementType: "room",
+      status,
+      severity: requirement.severity,
+      summary: `${room.name}: ${label} composite rule is ${status}; branch results: ${statuses.join(", ")}.`,
+      affectedElementIds: [...new Set(branchResults.flatMap((result) => result.affectedElementIds))],
+      evidence: branchResults.flatMap((result, index) => result.evidence.map((item) => ({
+        ...item,
+        message: `Condition ${index + 1} (${statuses[index]}): ${item.message}`
+      })))
+    };
+  });
+}
+
+function combineLogicalStatuses(
+  operator: "and" | "or",
+  statuses: ValidationResult["status"][]
+): ValidationResult["status"] {
+  if (operator === "and") {
+    if (statuses.includes("fail")) return "fail";
+    if (statuses.every((status) => status === "pass")) return "pass";
+    return "unknown";
+  }
+  if (statuses.includes("pass")) return "pass";
+  if (statuses.every((status) => status === "fail")) return "fail";
+  return "unknown";
 }
 
 function evaluateMinimumRoomArea(
