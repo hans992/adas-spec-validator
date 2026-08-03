@@ -88,7 +88,8 @@ const minimumRoomAreaRequirementSchema = z.object({
   type: z.literal("minimum_room_area"),
   severity: validationSeveritySchema,
   roomType: roomTypeSchema,
-  minAreaSqm: z.number().positive()
+  minAreaSqm: z.number().positive(),
+  maxAreaSqm: z.number().positive().optional()
 });
 
 const minimumDoorWidthRequirementSchema = z.object({
@@ -97,7 +98,9 @@ const minimumDoorWidthRequirementSchema = z.object({
   type: z.literal("minimum_door_width_for_room_type"),
   severity: validationSeveritySchema,
   roomType: roomTypeSchema,
-  minDoorWidthM: z.number().positive()
+  minDoorWidthM: z.number().positive(),
+  maxDoorWidthM: z.number().positive().optional(),
+  quantifier: z.enum(["any", "all"]).optional()
 });
 
 const roomHasConnectedDoorRequirementSchema = z.object({
@@ -111,6 +114,29 @@ export const requirementSchema = z.discriminatedUnion("type", [
   minimumRoomAreaRequirementSchema,
   minimumDoorWidthRequirementSchema,
   roomHasConnectedDoorRequirementSchema
-]);
+]).superRefine((requirement, context) => {
+  if (
+    requirement.type === "minimum_room_area" &&
+    requirement.maxAreaSqm !== undefined &&
+    requirement.maxAreaSqm < requirement.minAreaSqm
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["maxAreaSqm"],
+      message: "Maximum room area must be greater than or equal to minimum room area"
+    });
+  }
+  if (
+    requirement.type === "minimum_door_width_for_room_type" &&
+    requirement.maxDoorWidthM !== undefined &&
+    requirement.maxDoorWidthM < requirement.minDoorWidthM
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["maxDoorWidthM"],
+      message: "Maximum door width must be greater than or equal to minimum door width"
+    });
+  }
+});
 
 export const requirementsSchema = z.array(requirementSchema).min(1);
