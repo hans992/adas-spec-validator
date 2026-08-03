@@ -529,6 +529,9 @@ ${res.evidence
                     <p className="font-semibold text-emerald-700 dark:text-emerald-400">
                       {ifcDiagnostics.schema}: {ifcDiagnostics.storeysFound} storeys · {ifcDiagnostics.spacesFound} spaces · {ifcDiagnostics.doorsFound} doors · {ifcDiagnostics.boundariesFound} direct boundaries
                     </p>
+                    <p className="mt-1 text-slate-600 dark:text-slate-400">
+                      Units: {ifcDiagnostics.lengthUnit} · Areas: {ifcDiagnostics.areaSources.quantities} quantities + {ifcDiagnostics.areaSources.properties} properties · Door widths: {ifcDiagnostics.doorWidthSources.instances} instances + {ifcDiagnostics.doorWidthSources.properties} properties
+                    </p>
                     {ifcDiagnostics.warnings.map((warning) => (
                       <p key={warning} className="mt-1 text-amber-700 dark:text-amber-400">Warning: {warning}</p>
                     ))}
