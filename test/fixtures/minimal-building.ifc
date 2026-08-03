@@ -1,0 +1,17 @@
+ISO-10303-21;
+HEADER;
+FILE_DESCRIPTION(('ViewDefinition [ReferenceView]'),'2;1');
+FILE_NAME('minimal-building.ifc','2026-08-02T12:00:00',('ADAS Spec Validator'),('OpenAI'),'ADAS Spec Validator','ADAS Spec Validator','');
+FILE_SCHEMA(('IFC4'));
+ENDSEC;
+DATA;
+#10=IFCBUILDINGSTOREY('2O2Fr$t4X7Zf8NOew3FLOH',$,'Ground Floor',$,$,$,$,$,.ELEMENT.,0.);
+#20=IFCSPACE('3O2Fr$t4X7Zf8NOew3FLOH',$,'Stockroom 01',$,'stockroom',$,$,'Stockroom 01',.ELEMENT.,.INTERNAL.,0.);
+#30=IFCDOOR('0O2Fr$t4X7Zf8NOew3FLOH',$,'Stockroom Door',$,$,$,$,$,2.1,0.9,.DOOR.,.SINGLE_SWING_LEFT.,$);
+#40=IFCRELCONTAINEDINSPATIALSTRUCTURE('1O2Fr$t4X7Zf8NOew3FLOH',$,$,$,(#20,#30),#10);
+#41=IFCRELSPACEBOUNDARY('1P2Fr$t4X7Zf8NOew3FLOH',$,$,$,#20,#30,$,.PHYSICAL.,.INTERNAL.);
+#50=IFCELEMENTQUANTITY('1Q2Fr$t4X7Zf8NOew3FLOH',$,'BaseQuantities',$,$,(#51));
+#51=IFCQUANTITYAREA('NetFloorArea',$,$,8.5,$);
+#52=IFCRELDEFINESBYPROPERTIES('1R2Fr$t4X7Zf8NOew3FLOH',$,$,$,(#20),#50);
+ENDSEC;
+END-ISO-10303-21;

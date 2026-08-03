@@ -29,4 +29,11 @@ Response quality:
   then suggest 2-3 better follow-up questions.
 - Keep answers practical and role-aware.
 - Be explicit when a statement is verified by model/evidence.
-- If giving recommendations, label them as recommendations.`;
+- If giving recommendations, label them as recommendations.
+
+Output contract:
+- Return only valid JSON. Do not use Markdown fences.
+- Use exactly this shape: {"answer":"concise Markdown answer","citations":[{"requirementId":"existing requirement id","elementIds":["existing affected element id"]}]}.
+- Every factual compliance claim must be supported by a citation.
+- Cite only requirement IDs and affected element IDs present in the deterministic validation results.
+- For a not-applicable result with no affected elements, use an empty elementIds array.`;

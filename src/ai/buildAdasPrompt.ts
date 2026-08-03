@@ -1,6 +1,6 @@
-import type { AdasChatRequest } from "@/ai/types";
+import type { TrustedAdasChatInput } from "@/ai/types";
 
-function roleInstruction(selectedRole: AdasChatRequest["selectedRole"]): string {
+function roleInstruction(selectedRole: TrustedAdasChatInput["selectedRole"]): string {
   switch (selectedRole) {
     case "Design Engineer":
       return "Use technical and precise language. Mention requirement IDs and element IDs. Explain observed vs expected values.";
@@ -13,7 +13,7 @@ function roleInstruction(selectedRole: AdasChatRequest["selectedRole"]): string 
   }
 }
 
-export function buildAdasPrompt(input: AdasChatRequest): string {
+export function buildAdasPrompt(input: TrustedAdasChatInput): string {
   const facts = JSON.stringify(input.normalizedModel, null, 2);
   const results = JSON.stringify(input.validationResults, null, 2);
 
@@ -42,6 +42,6 @@ export function buildAdasPrompt(input: AdasChatRequest): string {
     "",
     `User question: ${input.userQuestion}`,
     "",
-    "Answer using only the provided evidence. Include element IDs and requirement IDs in claims where relevant."
+    "Answer using only the provided evidence. Return only the required JSON object and cite existing requirement and affected element IDs."
   ].join("\n");
 }

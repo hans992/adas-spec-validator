@@ -43,10 +43,12 @@ export function BimFloorPlan({
     const map = new Map<string, { status: "pass" | "fail" | "unknown"; severity?: string }>();
     
     validationResults.forEach((result) => {
+      if (result.status === "not_applicable") return;
+      const status = result.status;
       result.affectedElementIds.forEach((id) => {
         const existing = map.get(id);
-        if (!existing || existing.status === "pass" || (existing.status === "unknown" && result.status === "fail")) {
-          map.set(id, { status: result.status, severity: result.severity });
+        if (!existing || existing.status === "pass" || (existing.status === "unknown" && status === "fail")) {
+          map.set(id, { status, severity: result.severity });
         }
       });
     });

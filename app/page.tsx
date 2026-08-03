@@ -11,7 +11,6 @@ import {
   UploadCloud,
   FileDown,
   RefreshCw,
-  Terminal,
   ChevronRight
 } from "lucide-react";
 
@@ -25,13 +24,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 import { sampleModelData, sampleRequirements } from "@/domain/sampleData";
-import { mockIfcModelData } from "@/domain/mockIfcData";
 import {
   parseUploadedJson,
   validateUploadedModel,
   validateUploadedRequirements
 } from "@/domain/uploadHelpers";
 import { validateWithDeterministicRules } from "@/domain/validationPipeline";
+import { calculateComplianceMetrics } from "@/domain/complianceMetrics";
+import type { IfcParseDiagnostics } from "@/domain/ifcParser";
 import type { NormalizedModel, Requirement } from "@/domain/types";
 
 type DataSourceStatus = "sample" | "uploaded";
@@ -46,6 +46,8 @@ export default function Home() {
   const [requirementsError, setRequirementsError] = useState("");
   const [modelFilename, setModelFilename] = useState("");
   const [requirementsFilename, setRequirementsFilename] = useState("");
+  const [isParsingIfc, setIsParsingIfc] = useState(false);
+  const [ifcDiagnostics, setIfcDiagnostics] = useState<IfcParseDiagnostics | null>(null);
 
   // Interactive Selection States
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -54,11 +56,6 @@ export default function Home() {
 
   // Tab selections
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<"visualizer" | "json">("visualizer");
-
-  // IFC Parser Simulated States
-  const [isParsingIfc, setIsParsingIfc] = useState(false);
-  const [ifcLogs, setIfcLogs] = useState<string[]>([]);
-  const [ifcProgress, setIfcProgress] = useState(0);
 
   // Run the deterministic validation pipeline
   const { model, requirements, results } = useMemo(() => {
@@ -70,16 +67,12 @@ export default function Home() {
     }
   }, [modelData, requirementsData]);
 
-  // Statistics counters
-  const passCount = results.filter((result) => result.status === "pass").length;
-  const failCount = results.filter((result) => result.status === "fail").length;
-  const unknownCount = results.filter((result) => result.status === "unknown").length;
-  const criticalIssuesCount = results.filter(
-    (result) => result.status === "fail" && result.severity === "critical"
-  ).length;
-
-  const totalResultsCount = passCount + failCount + unknownCount;
-  const complianceRate = totalResultsCount > 0 ? Math.round((passCount / totalResultsCount) * 100) : 0;
+  const metrics = useMemo(
+    () => calculateComplianceMetrics(requirements, results),
+    [requirements, results]
+  );
+  const passRateDisplay = metrics.passRate === null ? "—" : `${metrics.passRate}%`;
+  const coverageDisplay = metrics.coverage === null ? "—" : `${metrics.coverage}%`;
 
   const dataSourceLabel =
     modelSource === "sample" && requirementsSource === "sample"
@@ -118,9 +111,35 @@ export default function Home() {
 
   // File parsers
   const handleModelFile = useCallback(async (file: File) => {
-    // Check if it's an IFC file
     if (file.name.toLowerCase().endsWith(".ifc")) {
-      triggerIfcSimulatedParser(file.name, file.size);
+      setIsParsingIfc(true);
+      setModelError("");
+      setIfcDiagnostics(null);
+      try {
+        const body = new FormData();
+        body.append("file", file);
+        const response = await fetch("/api/ifc", { method: "POST", body });
+        const payload = await response.json() as {
+          model?: unknown;
+          diagnostics?: IfcParseDiagnostics;
+          error?: string;
+        };
+        if (!response.ok || payload.model === undefined || payload.diagnostics === undefined) {
+          throw new Error(payload.error ?? "The IFC model could not be parsed.");
+        }
+        const validationResult = validateUploadedModel(payload.model);
+        if (!validationResult.success) throw new Error(validationResult.error);
+
+        setModelData(validationResult.data);
+        setModelSource("uploaded");
+        setModelFilename(file.name);
+        setIfcDiagnostics(payload.diagnostics);
+        handleDeselect();
+      } catch (error) {
+        setModelError(error instanceof Error ? error.message : "The IFC model could not be parsed.");
+      } finally {
+        setIsParsingIfc(false);
+      }
       return;
     }
 
@@ -141,6 +160,7 @@ export default function Home() {
     setModelSource("uploaded");
     setModelFilename(file.name);
     setModelError("");
+    setIfcDiagnostics(null);
     handleDeselect();
   }, [handleDeselect]);
 
@@ -193,43 +213,6 @@ export default function Home() {
     }
   });
 
-  // Simulated IFC parser progress trigger
-  function triggerIfcSimulatedParser(filename: string, sizeBytes: number) {
-    setIsParsingIfc(true);
-    setIfcProgress(0);
-    setIfcLogs([]);
-
-    const logMessages = [
-      `[INFO] Initializing IFC boundary extractor boundary...`,
-      `[OK] File size: ${(sizeBytes / 1024).toFixed(2)} KB, format: IFC-SPF (ISO-10303-21)`,
-      `[INFO] Parsing IFC Spatial Structure (IfcProject -> IfcBuildingStorey)...`,
-      `[OK] Found 5 spatial zones (IfcSpace) in hierarchy`,
-      `[INFO] Extracting spatial element connectivity boundaries (IfcRelSpaceBoundary)...`,
-      `[OK] Successfully bound 5 doors (IfcDoor) to spaces`,
-      `[INFO] Normalizing facts to BIM Compliance contract...`,
-      `[SUCCESS] Extraction complete! 5 rooms & 5 doors mapped to validation sandbox.`
-    ];
-
-    let currentStep = 0;
-    const interval = setInterval(() => {
-      if (currentStep < logMessages.length) {
-        setIfcLogs((prev) => [...prev, logMessages[currentStep]]);
-        setIfcProgress((currentStep + 1) * (100 / logMessages.length));
-        currentStep++;
-      } else {
-        clearInterval(interval);
-        setTimeout(() => {
-          setModelData(mockIfcModelData);
-          setModelSource("uploaded");
-          setModelFilename(filename);
-          setModelError("");
-          setIsParsingIfc(false);
-          handleDeselect();
-        }, 600);
-      }
-    }, 300);
-  }
-
   function resetToSampleData() {
     setModelData(sampleModelData);
     setRequirementsData(sampleRequirements);
@@ -239,6 +222,7 @@ export default function Home() {
     setRequirementsError("");
     setModelFilename("");
     setRequirementsFilename("");
+    setIfcDiagnostics(null);
     handleDeselect();
   }
 
@@ -246,7 +230,10 @@ export default function Home() {
   function exportComplianceReport() {
     const reportMd = `# ADAS Spec Validator - Building Compliance Report
 Generated at: ${new Date().toLocaleString()}
-Compliance Score: ${complianceRate}% (${passCount} Pass / ${failCount} Fail / ${unknownCount} Unknown)
+Requirement Pass Rate: ${passRateDisplay} (${metrics.compliantRequirements} Compliant / ${metrics.violatedRequirements} Violated among determined requirements)
+Evaluation Coverage: ${coverageDisplay} (${metrics.determinedRequirements} Determined / ${metrics.applicableRequirements} Applicable)
+Critical Failed Requirements: ${metrics.criticalFailures}
+Not Applicable Requirements: ${metrics.notApplicableRequirements}
 
 ## Overview Metrics
 - Total Rooms Inspected: ${model.rooms.length}
@@ -255,11 +242,9 @@ Compliance Score: ${complianceRate}% (${passCount} Pass / ${failCount} Fail / ${
 - Total Evaluated Rule Specifications: ${requirements.length}
 
 ## Spec Compliance Breakdown
-${requirements
-  .map((req, idx) => {
-    const reqResults = results.filter((r) => r.requirementId === req.id);
-    const pass = reqResults.every((r) => r.status === "pass");
-    return `${idx + 1}. [${pass ? "COMPLIANT" : "VIOLATION"}] **${req.title}** (Severity: ${req.severity})`;
+${metrics.assessments
+  .map((assessment, idx) => {
+    return `${idx + 1}. [${assessment.outcome.toUpperCase().replace("_", " ")}] **${assessment.requirement.title}** (Severity: ${assessment.requirement.severity})`;
   })
   .join("\n")}
 
@@ -354,9 +339,9 @@ ${res.evidence
           {/* Radial progress ring stats card */}
           <Card className="flex items-center justify-between p-4 overflow-hidden shadow-md">
             <div className="space-y-1 text-left">
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Storey Compliance</p>
-              <p className="text-2xl font-extrabold tracking-tight">{passCount} / {totalResultsCount} Passed</p>
-              <p className="text-[10px] text-slate-500">Deterministic requirements satisfied</p>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Requirement Pass Rate</p>
+              <p className="text-2xl font-extrabold tracking-tight">{passRateDisplay}</p>
+              <p className="text-[10px] text-slate-500">{metrics.compliantRequirements} of {metrics.determinedRequirements} determined requirements pass</p>
             </div>
             <div className="relative flex items-center justify-center">
               <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
@@ -366,23 +351,23 @@ ${res.evidence
                   cy="18"
                   r="16"
                   fill="none"
-                  stroke={complianceRate >= 80 ? "#10b981" : complianceRate >= 50 ? "#f59e0b" : "#f43f5e"}
+                  stroke={(metrics.passRate ?? 0) >= 80 ? "#10b981" : (metrics.passRate ?? 0) >= 50 ? "#f59e0b" : "#f43f5e"}
                   strokeWidth="3"
                   strokeDasharray="100"
                   initial={{ strokeDashoffset: 100 }}
-                  animate={{ strokeDashoffset: 100 - complianceRate }}
+                  animate={{ strokeDashoffset: 100 - (metrics.passRate ?? 0) }}
                   transition={{ duration: 1.2, ease: "easeOut" }}
                 />
               </svg>
-              <span className="absolute font-mono text-xs font-bold">{complianceRate}%</span>
+              <span className="absolute font-mono text-xs font-bold">{passRateDisplay}</span>
             </div>
           </Card>
 
           {/* Compliance counters */}
           {[
-            { label: "Valid Passes", value: passCount, color: "text-emerald-500 bg-emerald-500/10", border: "border-emerald-200/50 dark:border-emerald-950/50", criticalCount: undefined as number | undefined },
-            { label: "Detected Violations", value: failCount, color: "text-rose-500 bg-rose-500/10", border: "border-rose-200/50 dark:border-rose-950/50", criticalCount: criticalIssuesCount },
-            { label: "Unknown (Missing Parameters)", value: unknownCount, color: "text-amber-500 bg-amber-500/10", border: "border-amber-200/50 dark:border-amber-950/50", criticalCount: undefined as number | undefined }
+            { label: "Evaluation Coverage", value: coverageDisplay, detail: `${metrics.unknownRequirements} unknown`, color: "text-indigo-500 bg-indigo-500/10", border: "border-indigo-200/50 dark:border-indigo-950/50", criticalCount: undefined as number | undefined },
+            { label: "Violated Requirements", value: metrics.violatedRequirements, detail: `${metrics.criticalFailures} critical`, color: "text-rose-500 bg-rose-500/10", border: "border-rose-200/50 dark:border-rose-950/50", criticalCount: metrics.criticalFailures },
+            { label: "Not Applicable", value: metrics.notApplicableRequirements, detail: "Excluded from rates", color: "text-amber-500 bg-amber-500/10", border: "border-amber-200/50 dark:border-amber-950/50", criticalCount: undefined as number | undefined }
           ].map((stat, i) => (
             <Card key={i} className={`p-4 flex flex-col justify-between shadow-md border ${stat.border}`}>
               <div className="flex items-center justify-between">
@@ -391,6 +376,7 @@ ${res.evidence
               </div>
               <div className="mt-3 text-left">
                 <p className="text-3xl font-extrabold tracking-tight">{stat.value}</p>
+                <p className="mt-1 text-[10px] text-slate-500">{stat.detail}</p>
                 {stat.criticalCount !== undefined && (
                   <Badge variant="destructive" className="mt-2 text-[10px] py-0 font-semibold">
                     {stat.criticalCount} critical
@@ -443,40 +429,6 @@ ${res.evidence
                 
                 {/* SVG/JSON Tab Panel */}
                 <AnimatePresence mode="wait">
-                  {isParsingIfc ? (
-                    <motion.div
-                      key="ifc-parsing"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="absolute inset-0 bg-slate-950/95 z-50 flex flex-col p-6 font-mono text-left text-indigo-400 border border-indigo-900 rounded-xl"
-                    >
-                      <div className="flex items-center justify-between mb-4 border-b border-slate-900 pb-2.5">
-                        <p className="text-xs uppercase tracking-widest font-extrabold flex items-center gap-1.5">
-                          <Terminal className="h-4 w-4 animate-spin text-indigo-500" />
-                          IFC BINDERY BOUNDARY EXTRACTOR
-                        </p>
-                        <span className="text-xs text-indigo-300 font-bold">{Math.round(ifcProgress)}%</span>
-                      </div>
-                      
-                      <div className="w-full bg-slate-900 h-1 rounded overflow-hidden mb-4">
-                        <motion.div
-                          className="h-full bg-indigo-500 shadow-md"
-                          animate={{ width: `${ifcProgress}%` }}
-                        />
-                      </div>
-                      
-                      <div className="flex-1 overflow-y-auto space-y-1.5 text-[11px] leading-relaxed text-indigo-300/90 max-h-[300px]">
-                        {ifcLogs.map((log, idx) => (
-                          <div key={idx} className="flex items-start gap-1">
-                            <span className="text-indigo-600/70 select-none">&gt;&gt;</span>
-                            <span>{log}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </motion.div>
-                  ) : null}
-
                   {activeWorkspaceTab === "visualizer" ? (
                     <motion.div
                       key="map-tab"
@@ -519,7 +471,7 @@ ${res.evidence
             <Card className="shadow-md">
               <CardHeader className="pb-2 text-left">
                 <CardTitle className="text-sm">BIM / CAD Extract Connector</CardTitle>
-                <CardDescription className="text-xs">Drag JSON or .ifc files to ingest Revit boundaries locally.</CardDescription>
+                <CardDescription className="text-xs">Parse native IFC models server-side or upload the normalized BIM JSON contract.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="grid gap-3 text-xs md:grid-cols-2">
@@ -535,10 +487,15 @@ ${res.evidence
                     <div className="flex items-start gap-3">
                       <UploadCloud className="mt-0.5 h-4 w-4 text-slate-500 flex-shrink-0" />
                       <div className="space-y-1">
-                        <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">Upload Model (JSON/IFC)</p>
-                        <p className="text-[10px] text-slate-500">Extract elements from IFC boundary or Zod JSON files.</p>
+                        <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">Upload Model (IFC / JSON)</p>
+                        <p className="text-[10px] text-slate-500">Extract real storeys, spaces, doors, quantities and boundaries from IFC.</p>
                       </div>
                     </div>
+                    {isParsingIfc && (
+                      <p className="mt-3 flex items-center gap-1.5 text-[10px] font-semibold text-indigo-500">
+                        <RefreshCw className="h-3 w-3 animate-spin" /> Parsing IFC with web-ifc…
+                      </p>
+                    )}
                     {modelFilename && (
                       <p className="text-[10px] font-mono text-indigo-500 mt-3 truncate font-semibold">Active: {modelFilename}</p>
                     )}
@@ -567,6 +524,16 @@ ${res.evidence
                     {requirementsError && <p className="text-[10px] text-rose-500 mt-2 font-semibold">{requirementsError}</p>}
                   </div>
                 </div>
+                {ifcDiagnostics && (
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 text-left text-[10px] dark:border-emerald-950/50 dark:bg-emerald-950/10">
+                    <p className="font-semibold text-emerald-700 dark:text-emerald-400">
+                      {ifcDiagnostics.schema}: {ifcDiagnostics.storeysFound} storeys · {ifcDiagnostics.spacesFound} spaces · {ifcDiagnostics.doorsFound} doors · {ifcDiagnostics.boundariesFound} direct boundaries
+                    </p>
+                    {ifcDiagnostics.warnings.map((warning) => (
+                      <p key={warning} className="mt-1 text-amber-700 dark:text-amber-400">Warning: {warning}</p>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </section>
@@ -592,7 +559,7 @@ ${res.evidence
                 <div className="max-h-[500px] overflow-y-auto pr-1 space-y-3">
                   {results.map((result, resultIndex) => {
                     const isFailing = result.status === "fail";
-                    const isUnknown = result.status === "unknown";
+                    const isUnknown = result.status === "unknown" || result.status === "not_applicable";
                     
                     return (
                       <div
@@ -710,7 +677,7 @@ ${res.evidence
             {/* ADAS Chat Panel AI Console */}
             <AdasChatPanel
               normalizedModel={model}
-              validationResults={results}
+              requirements={requirements}
               onSelectElement={handleSelectElement}
             />
 

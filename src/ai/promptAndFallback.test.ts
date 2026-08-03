@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { ADAS_SYSTEM_PROMPT } from "@/ai/adasSystemPrompt";
 import { buildAdasPrompt } from "@/ai/buildAdasPrompt";
 import { buildFallbackAnswer } from "@/ai/fallbackAnswer";
-import type { AdasChatRequest } from "@/ai/types";
+import type { TrustedAdasChatInput } from "@/ai/types";
 
-const requestFixture: AdasChatRequest = {
+const requestFixture: TrustedAdasChatInput = {
   userQuestion: "Does room rm-stock-02 comply?",
   selectedRole: "Design Engineer",
   normalizedModel: {
@@ -19,6 +19,16 @@ const requestFixture: AdasChatRequest = {
     ],
     doors: []
   },
+  requirements: [
+    {
+      id: "req-stockroom-min-area",
+      title: "Stockrooms must be at least 15 sqm",
+      type: "minimum_room_area",
+      severity: "critical",
+      roomType: "stockroom",
+      minAreaSqm: 15
+    }
+  ],
   validationResults: [
     {
       ruleId: "MinimumRoomAreaRule",
