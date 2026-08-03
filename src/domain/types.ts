@@ -2,6 +2,7 @@ export type RoomType = "stockroom" | "office" | "meeting_room" | "corridor" | "u
 
 export type ValidationStatus = "pass" | "fail" | "unknown" | "not_applicable";
 export type ValidationSeverity = "info" | "warning" | "critical";
+export type DoorQuantifier = "any" | "all";
 
 export interface Level {
   id: string;
@@ -39,6 +40,7 @@ export type Requirement =
       severity: ValidationSeverity;
       roomType: RoomType;
       minAreaSqm: number;
+      maxAreaSqm?: number;
     }
   | {
       id: string;
@@ -47,6 +49,8 @@ export type Requirement =
       severity: ValidationSeverity;
       roomType: RoomType;
       minDoorWidthM: number;
+      maxDoorWidthM?: number;
+      quantifier?: DoorQuantifier;
     }
   | {
       id: string;
