@@ -530,10 +530,13 @@ ${res.evidence
                       {ifcDiagnostics.schema}: {ifcDiagnostics.storeysFound} storeys · {ifcDiagnostics.spacesFound} spaces · {ifcDiagnostics.doorsFound} doors · {ifcDiagnostics.boundariesFound} resolved boundaries
                     </p>
                     <p className="mt-1 text-slate-600 dark:text-slate-400">
-                      Units: {ifcDiagnostics.lengthUnit} · Areas: {ifcDiagnostics.areaSources.quantities} quantities + {ifcDiagnostics.areaSources.properties} properties · Door widths: {ifcDiagnostics.doorWidthSources.instances} instances + {ifcDiagnostics.doorWidthSources.properties} properties
+                      Units: {ifcDiagnostics.lengthUnit} · Areas: {ifcDiagnostics.areaSources.quantities} quantities + {ifcDiagnostics.areaSources.properties} properties · Door widths: {ifcDiagnostics.doorWidthSources.instances} instances + {ifcDiagnostics.doorWidthSources.properties} properties + {ifcDiagnostics.doorWidthSources.types} types
                     </p>
                     <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                       Door links: {ifcDiagnostics.boundarySources.direct} direct + {ifcDiagnostics.boundarySources.throughOpenings} through openings
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      Storeys: {ifcDiagnostics.containment.inferredDoorStoreys} door assignments inferred · {ifcDiagnostics.containment.unassignedSpaces} spaces + {ifcDiagnostics.containment.unassignedDoors} doors unassigned
                     </p>
                     {ifcDiagnostics.warnings.map((warning) => (
                       <p key={warning} className="mt-1 text-amber-700 dark:text-amber-400">Warning: {warning}</p>
