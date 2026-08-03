@@ -9,6 +9,7 @@ import type {
 const MIN_ROOM_AREA_RULE_ID = "MinimumRoomAreaRule";
 const MIN_DOOR_WIDTH_RULE_ID = "MinimumDoorWidthForRoomTypeRule";
 const ROOM_HAS_CONNECTED_DOOR_RULE_ID = "RoomHasConnectedDoorRule";
+const COMPOSITE_ROOM_RULE_ID = "CompositeRoomRule";
 
 export function runDeterministicValidation(
   model: NormalizedModel,
@@ -27,6 +28,9 @@ export function runDeterministicValidation(
       case "room_has_connected_door":
         output.push(...evaluateRoomHasConnectedDoor(model, requirement));
         break;
+      case "composite_room_rule":
+        output.push(...evaluateCompositeRoomRule(model, requirement));
+        break;
       default: {
         const exhaustiveCheck: never = requirement;
         throw new Error(`Unhandled requirement type: ${exhaustiveCheck}`);
@@ -35,6 +39,73 @@ export function runDeterministicValidation(
   }
 
   return output;
+}
+
+function evaluateCompositeRoomRule(
+  model: NormalizedModel,
+  requirement: Extract<Requirement, { type: "composite_room_rule" }>
+): ValidationResult[] {
+  const targetRooms = model.rooms.filter((room) => room.roomType === requirement.roomType);
+  if (targetRooms.length === 0) return [notApplicableResult(requirement, requirement.roomType)];
+
+  return targetRooms.map((room) => {
+    const scopedModel = { ...model, rooms: [room] };
+    const branchResults = requirement.conditions.map((condition, index) => {
+      if (condition.type === "room_area_range") {
+        return evaluateMinimumRoomArea(scopedModel, {
+          id: `${requirement.id}:condition-${index + 1}`,
+          title: requirement.title,
+          type: "minimum_room_area",
+          severity: requirement.severity,
+          roomType: requirement.roomType,
+          minAreaSqm: condition.minAreaSqm,
+          maxAreaSqm: condition.maxAreaSqm
+        })[0];
+      }
+      return evaluateMinimumDoorWidthForRoomType(scopedModel, {
+        id: `${requirement.id}:condition-${index + 1}`,
+        title: requirement.title,
+        type: "minimum_door_width_for_room_type",
+        severity: requirement.severity,
+        roomType: requirement.roomType,
+        minDoorWidthM: condition.minDoorWidthM,
+        maxDoorWidthM: condition.maxDoorWidthM,
+        quantifier: condition.quantifier
+      })[0];
+    });
+
+    const statuses = branchResults.map((result) => result.status);
+    const status = combineLogicalStatuses(requirement.operator, statuses);
+    const label = requirement.operator.toUpperCase();
+    return {
+      ruleId: COMPOSITE_ROOM_RULE_ID,
+      requirementId: requirement.id,
+      requirementTitle: requirement.title,
+      elementType: "room",
+      status,
+      severity: requirement.severity,
+      summary: `${room.name}: ${label} composite rule is ${status}; branch results: ${statuses.join(", ")}.`,
+      affectedElementIds: [...new Set(branchResults.flatMap((result) => result.affectedElementIds))],
+      evidence: branchResults.flatMap((result, index) => result.evidence.map((item) => ({
+        ...item,
+        message: `Condition ${index + 1} (${statuses[index]}): ${item.message}`
+      })))
+    };
+  });
+}
+
+function combineLogicalStatuses(
+  operator: "and" | "or",
+  statuses: ValidationResult["status"][]
+): ValidationResult["status"] {
+  if (operator === "and") {
+    if (statuses.includes("fail")) return "fail";
+    if (statuses.every((status) => status === "pass")) return "pass";
+    return "unknown";
+  }
+  if (statuses.includes("pass")) return "pass";
+  if (statuses.every((status) => status === "fail")) return "fail";
+  return "unknown";
 }
 
 function evaluateMinimumRoomArea(
@@ -66,7 +137,8 @@ function evaluateMinimumRoomArea(
         };
       }
 
-      const passes = room.areaSqm >= requirement.minAreaSqm;
+      const expectedRange = formatRange(requirement.minAreaSqm, requirement.maxAreaSqm, "sqm");
+      const passes = isWithinRange(room.areaSqm, requirement.minAreaSqm, requirement.maxAreaSqm);
       return {
         ruleId: MIN_ROOM_AREA_RULE_ID,
         requirementId: requirement.id,
@@ -75,15 +147,15 @@ function evaluateMinimumRoomArea(
         status: passes ? "pass" : "fail",
         severity: requirement.severity,
         summary: passes
-          ? `${room.name} satisfies minimum area (${room.areaSqm} sqm >= ${requirement.minAreaSqm} sqm).`
-          : `${room.name} violates minimum area (${room.areaSqm} sqm < ${requirement.minAreaSqm} sqm).`,
+          ? `${room.name} area ${room.areaSqm} sqm satisfies ${expectedRange}.`
+          : `${room.name} area ${room.areaSqm} sqm violates ${expectedRange}.`,
         affectedElementIds: [room.id],
         evidence: [
           {
             message: "Room area was compared against deterministic threshold.",
             field: "room.areaSqm",
             observed: room.areaSqm,
-            expected: requirement.minAreaSqm
+            expected: expectedRange
           }
         ]
       };
@@ -194,8 +266,19 @@ function validateRoomDoorWidths(
   }
 
   const connectedDoors = room.connectedDoorIds.map((doorId) => doorById.get(doorId)!);
+  const quantifier = requirement.quantifier ?? "all";
+  const expectedRange = formatRange(requirement.minDoorWidthM, requirement.maxDoorWidthM, "m");
   const doorsWithMissingWidth = connectedDoors.filter((door) => door.widthM === undefined);
-  if (doorsWithMissingWidth.length > 0) {
+  const knownDoors = connectedDoors.filter((door): door is Door & { widthM: number } => door.widthM !== undefined);
+  const passingDoors = knownDoors.filter((door) =>
+    isWithinRange(door.widthM, requirement.minDoorWidthM, requirement.maxDoorWidthM)
+  );
+  const failingDoors = knownDoors.filter((door) => !passingDoors.includes(door));
+
+  const decidedPass = quantifier === "any" ? passingDoors.length > 0 : failingDoors.length === 0 && doorsWithMissingWidth.length === 0;
+  const decidedFail = quantifier === "any" ? passingDoors.length === 0 && doorsWithMissingWidth.length === 0 : failingDoors.length > 0;
+
+  if (!decidedPass && !decidedFail) {
     return {
       ruleId: MIN_DOOR_WIDTH_RULE_ID,
       requirementId: requirement.id,
@@ -203,21 +286,20 @@ function validateRoomDoorWidths(
       elementType: "room",
       status: "unknown",
       severity: requirement.severity,
-      summary: `Cannot fully verify ${room.name}; one or more connected doors have missing width.`,
+      summary: `Cannot verify whether ${quantifier} connected doors for ${room.name} satisfy ${expectedRange}; one or more doors have missing width.`,
       affectedElementIds: [room.id, ...doorsWithMissingWidth.map((door) => door.id)],
       evidence: [
         {
           message: "Door width parameter is missing for connected door.",
           field: "door.widthM",
           observed: doorsWithMissingWidth.map((door) => door.id).join(", "),
-          expected: `All connected doors width >= ${requirement.minDoorWidthM}m`
+          expected: `${quantifier} connected doors within ${expectedRange}`
         }
       ]
     };
   }
 
-  const failingDoors = connectedDoors.filter((door) => (door.widthM as number) < requirement.minDoorWidthM);
-  const status = failingDoors.length === 0 ? "pass" : "fail";
+  const status = decidedPass ? "pass" : "fail";
   return {
     ruleId: MIN_DOOR_WIDTH_RULE_ID,
     requirementId: requirement.id,
@@ -227,24 +309,32 @@ function validateRoomDoorWidths(
     severity: requirement.severity,
     summary:
       status === "pass"
-        ? `${room.name} door widths satisfy minimum ${requirement.minDoorWidthM}m.`
-        : `${room.name} has door widths below ${requirement.minDoorWidthM}m.`,
+        ? `${quantifier === "any" ? "At least one" : "All"} connected doors for ${room.name} satisfy ${expectedRange}.`
+        : `${quantifier === "any" ? "No" : "Not all"} connected doors for ${room.name} satisfy ${expectedRange}.`,
     affectedElementIds: [room.id, ...connectedDoors.map((door) => door.id)],
     evidence: [
       {
         message:
           status === "pass"
-            ? "All connected door widths meet the deterministic threshold."
-            : "Connected door width is below deterministic threshold.",
+            ? `${quantifier === "any" ? "At least one" : "All"} connected door widths meet the deterministic range.`
+            : `${quantifier === "any" ? "No" : "Not all"} connected door widths meet the deterministic range.`,
         field: "door.widthM",
         observed:
           status === "pass"
-            ? connectedDoors.map((door) => `${door.id}:${door.widthM}`).join(", ")
+            ? knownDoors.map((door) => `${door.id}:${door.widthM}`).join(", ")
             : failingDoors.map((door) => `${door.id}:${door.widthM}`).join(", "),
-        expected: `>= ${requirement.minDoorWidthM}m`
+        expected: `${quantifier} connected doors within ${expectedRange}`
       }
     ]
   };
+}
+
+function isWithinRange(value: number, minimum: number, maximum?: number): boolean {
+  return value >= minimum && (maximum === undefined || value <= maximum);
+}
+
+function formatRange(minimum: number, maximum: number | undefined, unit: string): string {
+  return maximum === undefined ? `>= ${minimum} ${unit}` : `${minimum}-${maximum} ${unit}`;
 }
 
 function evaluateRoomHasConnectedDoor(

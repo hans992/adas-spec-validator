@@ -9,6 +9,7 @@ This is not a generic BIM chatbot and the LLM is never the source of truth. Rule
 - Native IFC2x3 and IFC4 upload through a server-side `web-ifc` parser
 - Normalized JSON model and requirement upload with Zod validation
 - Deterministic `pass`, `fail`, `unknown`, and `not_applicable` outcomes
+- Minimum/maximum ranges, `any`/`all` connected-door quantifiers, and composite `AND`/`OR` room rules
 - Evidence records with observed values, expected values, and affected element IDs
 - Requirement-level pass rate, evaluation coverage, unknown/N/A counts, violations, and critical failures
 - Markdown evidence report export
@@ -44,9 +45,38 @@ The browser does not provide authoritative validation results to the chat layer.
 
 The current rule engine supports:
 
-- `minimum_room_area`
-- `minimum_door_width_for_room_type`
+- `minimum_room_area` with a required minimum and optional maximum
+- `minimum_door_width_for_room_type` with a required minimum, optional maximum, and `any`/`all` connected-door quantifier (`all` by default)
 - `room_has_connected_door`
+- `composite_room_rule`, combining two to ten room-area and connected-door-width conditions with `and` or `or`
+
+For example, this requirement passes for each office whose area is within 12–20 m² **and** that has at least one connected door within 0.9–1.2 m:
+
+```json
+{
+  "id": "office-access",
+  "title": "Office area and accessible entrance",
+  "type": "composite_room_rule",
+  "severity": "critical",
+  "roomType": "office",
+  "operator": "and",
+  "conditions": [
+    {
+      "type": "room_area_range",
+      "minAreaSqm": 12,
+      "maxAreaSqm": 20
+    },
+    {
+      "type": "connected_door_width_range",
+      "minDoorWidthM": 0.9,
+      "maxDoorWidthM": 1.2,
+      "quantifier": "any"
+    }
+  ]
+}
+```
+
+Composite rules target one room type and produce one result per matching room. Each condition retains its own evidence inside the combined result. `AND` fails as soon as a condition fails; `OR` passes as soon as a condition passes. Otherwise, incomplete facts keep the combined result `unknown` when they could still change the outcome.
 
 Every requirement produces structured outcomes. Missing facts remain `unknown`; non-applicable requirements remain `not_applicable`; neither is silently converted into a pass or failure.
 
@@ -169,7 +199,7 @@ See [`csharp-extractor-prototype/README.md`](csharp-extractor-prototype/README.m
 - There is no production Revit or AutoCAD add-in yet.
 - The IFC parser extracts a targeted semantic subset; it is not a full geometry engine.
 - Room-type inference is heuristic and intentionally leaves uncertain classifications unknown.
-- Supported deterministic requirement types are currently limited to the three rules listed above.
+- Composite rules currently target one room type and support room-area and connected-door-width conditions only; arbitrary nesting, cross-room aggregation, and additional BIM element types are not yet supported.
 - Rate limiting is in-memory and therefore instance-local; production deployment should use a shared store.
 - Uploaded data is not persisted in a database, but normalized model facts and evidence are sent to Gemini/OpenAI when the corresponding key is configured and the user requests an AI explanation.
 - External AI availability and output quality remain provider-dependent; invalid responses fall back to deterministic explanations.
