@@ -18,6 +18,7 @@ This is not a generic BIM chatbot and the LLM is never the source of truth. Rule
 - Structured AI responses whose requirement and element citations are verified against generated evidence
 - IFC diagnostics for units, extraction sources, containment, connectivity, and unsupported or missing data
 - Unit/API tests plus a Chromium E2E test covering IFC upload through report export
+- Authenticated project and validation-history API backed by Supabase Row Level Security
 
 ## Architecture
 
@@ -138,9 +139,15 @@ GOOGLE_GENERATION_MODEL=gemini-2.5-flash
 
 # Used when Gemini is not configured; defaults to gpt-4o-mini
 OPENAI_API_KEY=your_key
+
+# Required only for persisted projects and validation history
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
 ```
 
 Provider priority is Gemini, then OpenAI, then deterministic fallback.
+
+Apply `supabase/migrations/202608030001_projects_and_validation_runs.sql` before using persistence. The project APIs accept a Supabase access token through `Authorization: Bearer <token>`. Validation snapshots are never accepted as client-authored results: the server validates the submitted model and requirements, reruns the deterministic engine, calculates metrics, and only then writes the snapshot. RLS and a composite foreign key enforce that a run belongs to both the authenticated owner and that owner's project.
 
 ## Run locally
 
@@ -201,7 +208,8 @@ See [`csharp-extractor-prototype/README.md`](csharp-extractor-prototype/README.m
 - Room-type inference is heuristic and intentionally leaves uncertain classifications unknown.
 - Composite rules currently target one room type and support room-area and connected-door-width conditions only; arbitrary nesting, cross-room aggregation, and additional BIM element types are not yet supported.
 - Rate limiting is in-memory and therefore instance-local; production deployment should use a shared store.
-- Uploaded data is not persisted in a database, but normalized model facts and evidence are sent to Gemini/OpenAI when the corresponding key is configured and the user requests an AI explanation.
+- Authenticated persistence APIs and the database schema exist, but the browser sign-in, project dashboard, and save/open controls are not yet implemented.
+- Persisted snapshots currently store normalized facts, requirements, evidence, and metrics; raw IFC object storage and model-version diffs are not yet implemented.
 - External AI availability and output quality remain provider-dependent; invalid responses fall back to deterministic explanations.
 
 ## Validation philosophy
