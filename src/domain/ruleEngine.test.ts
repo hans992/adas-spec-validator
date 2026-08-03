@@ -291,4 +291,80 @@ describe("runDeterministicValidation", () => {
 
     expect(result.status).toBe("fail");
   });
+
+  it("passes an AND composite only when every condition passes", () => {
+    const [result] = runDeterministicValidation(baseModel, [{
+      id: "req-composite-and",
+      title: "Stockroom area and doors",
+      type: "composite_room_rule",
+      severity: "critical",
+      roomType: "stockroom",
+      operator: "and",
+      conditions: [
+        { type: "room_area_range", minAreaSqm: 15 },
+        { type: "connected_door_width_range", minDoorWidthM: 0.85, quantifier: "all" }
+      ]
+    }]);
+
+    expect(result.status).toBe("pass");
+    expect(result.evidence).toHaveLength(2);
+    expect(result.evidence[0].message).toContain("Condition 1 (pass)");
+    expect(result.evidence[1].message).toContain("Condition 2 (pass)");
+  });
+
+  it("fails an AND composite when one known condition fails despite another unknown", () => {
+    const model = { ...baseModel, rooms: [baseModel.rooms[2]] };
+    const [result] = runDeterministicValidation(model, [{
+      id: "req-composite-and-fail",
+      title: "Strict stockroom rule",
+      type: "composite_room_rule",
+      severity: "critical",
+      roomType: "stockroom",
+      operator: "and",
+      conditions: [
+        { type: "room_area_range", minAreaSqm: 15 },
+        { type: "connected_door_width_range", minDoorWidthM: 1, quantifier: "all" }
+      ]
+    }]);
+
+    expect(result.status).toBe("fail");
+    expect(result.summary).toContain("unknown, fail");
+  });
+
+  it("passes an OR composite when one condition passes despite another unknown", () => {
+    const model = { ...baseModel, rooms: [baseModel.rooms[2]] };
+    const [result] = runDeterministicValidation(model, [{
+      id: "req-composite-or",
+      title: "Alternative stockroom rule",
+      type: "composite_room_rule",
+      severity: "warning",
+      roomType: "stockroom",
+      operator: "or",
+      conditions: [
+        { type: "room_area_range", minAreaSqm: 15 },
+        { type: "connected_door_width_range", minDoorWidthM: 0.85, quantifier: "all" }
+      ]
+    }]);
+
+    expect(result.status).toBe("pass");
+    expect(result.summary).toContain("unknown, pass");
+  });
+
+  it("keeps a composite unknown when missing data can change its outcome", () => {
+    const model = { ...baseModel, rooms: [baseModel.rooms[2]] };
+    const [result] = runDeterministicValidation(model, [{
+      id: "req-composite-unknown",
+      title: "Undetermined stockroom rule",
+      type: "composite_room_rule",
+      severity: "warning",
+      roomType: "stockroom",
+      operator: "and",
+      conditions: [
+        { type: "room_area_range", minAreaSqm: 15 },
+        { type: "connected_door_width_range", minDoorWidthM: 0.85, quantifier: "all" }
+      ]
+    }]);
+
+    expect(result.status).toBe("unknown");
+  });
 });
