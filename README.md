@@ -208,7 +208,7 @@ See [`csharp-extractor-prototype/README.md`](csharp-extractor-prototype/README.m
 - Room-type inference is heuristic and intentionally leaves uncertain classifications unknown.
 - Composite rules currently target one room type and support room-area and connected-door-width conditions only; arbitrary nesting, cross-room aggregation, and additional BIM element types are not yet supported.
 - Rate limiting is in-memory and therefore instance-local; production deployment should use a shared store.
-- Authenticated persistence APIs and the database schema exist, but the browser sign-in, project dashboard, and save/open controls are not yet implemented.
+- Browser email/password sign-in, project creation, validation history, and save/open controls are implemented. Accounts must currently be provisioned in Supabase; self-service registration, password recovery, and session refresh are not yet implemented.
 - Persisted snapshots currently store normalized facts, requirements, evidence, and metrics; raw IFC object storage and model-version diffs are not yet implemented.
 - External AI availability and output quality remain provider-dependent; invalid responses fall back to deterministic explanations.
 
