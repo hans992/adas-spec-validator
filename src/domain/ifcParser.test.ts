@@ -52,4 +52,32 @@ describe("parseIfcBytes", () => {
     expect(result.model.doors[0]).toMatchObject({ widthM: 1 });
     expect(result.diagnostics.boundariesFound).toBe(1);
   });
+
+  it("assigns multiple storeys and resolves doors through IfcOpeningElement", async () => {
+    const bytes = await readFile(resolve(process.cwd(), "test/fixtures/multistorey-opening-building.ifc"));
+    const result = await parseIfcBytes(bytes);
+
+    expect(result.diagnostics).toMatchObject({
+      storeysFound: 2,
+      spacesFound: 2,
+      doorsFound: 2,
+      boundariesFound: 2,
+      boundarySources: { direct: 0, throughOpenings: 2 }
+    });
+    expect(result.model.levels.map((level) => level.name)).toEqual(["Ground Floor", "First Floor"]);
+
+    const groundRoom = result.model.rooms.find((room) => room.name === "Ground Office");
+    const firstRoom = result.model.rooms.find((room) => room.name === "First Meeting Room");
+    const groundDoor = result.model.doors.find((door) => door.name === "Ground Door");
+    const firstDoor = result.model.doors.find((door) => door.name === "First Door");
+
+    expect(groundRoom?.levelId).toBe(result.model.levels[0].id);
+    expect(firstRoom?.levelId).toBe(result.model.levels[1].id);
+    expect(groundDoor?.levelId).toBe(result.model.levels[0].id);
+    expect(firstDoor?.levelId).toBe(result.model.levels[1].id);
+    expect(groundRoom?.connectedDoorIds).toEqual([groundDoor?.id]);
+    expect(firstRoom?.connectedDoorIds).toEqual([firstDoor?.id]);
+    expect(groundDoor?.connectedRoomIds).toEqual([groundRoom?.id]);
+    expect(firstDoor?.connectedRoomIds).toEqual([firstRoom?.id]);
+  });
 });
