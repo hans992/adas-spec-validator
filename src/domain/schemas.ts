@@ -110,10 +110,37 @@ const roomHasConnectedDoorRequirementSchema = z.object({
   severity: validationSeveritySchema
 });
 
+const roomAreaConditionSchema = z.object({
+  type: z.literal("room_area_range"),
+  minAreaSqm: z.number().positive(),
+  maxAreaSqm: z.number().positive().optional()
+});
+
+const doorWidthConditionSchema = z.object({
+  type: z.literal("connected_door_width_range"),
+  minDoorWidthM: z.number().positive(),
+  maxDoorWidthM: z.number().positive().optional(),
+  quantifier: z.enum(["any", "all"]).optional()
+});
+
+const compositeRoomRuleSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().min(1),
+  type: z.literal("composite_room_rule"),
+  severity: validationSeveritySchema,
+  roomType: roomTypeSchema,
+  operator: z.enum(["and", "or"]),
+  conditions: z
+    .array(z.discriminatedUnion("type", [roomAreaConditionSchema, doorWidthConditionSchema]))
+    .min(2)
+    .max(10)
+});
+
 export const requirementSchema = z.discriminatedUnion("type", [
   minimumRoomAreaRequirementSchema,
   minimumDoorWidthRequirementSchema,
-  roomHasConnectedDoorRequirementSchema
+  roomHasConnectedDoorRequirementSchema,
+  compositeRoomRuleSchema
 ]).superRefine((requirement, context) => {
   if (
     requirement.type === "minimum_room_area" &&
@@ -135,6 +162,23 @@ export const requirementSchema = z.discriminatedUnion("type", [
       code: "custom",
       path: ["maxDoorWidthM"],
       message: "Maximum door width must be greater than or equal to minimum door width"
+    });
+  }
+  if (requirement.type === "composite_room_rule") {
+    requirement.conditions.forEach((condition, index) => {
+      const minimum = condition.type === "room_area_range"
+        ? condition.minAreaSqm
+        : condition.minDoorWidthM;
+      const maximum = condition.type === "room_area_range"
+        ? condition.maxAreaSqm
+        : condition.maxDoorWidthM;
+      if (maximum !== undefined && maximum < minimum) {
+        context.addIssue({
+          code: "custom",
+          path: ["conditions", index, condition.type === "room_area_range" ? "maxAreaSqm" : "maxDoorWidthM"],
+          message: "Condition maximum must be greater than or equal to its minimum"
+        });
+      }
     });
   }
 });
