@@ -1,151 +1,184 @@
 # ADAS Spec Validator
 
-ADAS Spec Validator is a deterministic AI design automation prototype for CAD/BIM-style model validation. It demonstrates how Revit/AutoCAD model facts can be extracted through a C# integration boundary, normalized into structured data, validated against explicit requirements, and then explained by an evidence-constrained ADAS chat layer.
+ADAS Spec Validator is an evidence-first prototype for validating CAD/BIM model facts against explicit requirements. It accepts normalized model JSON or native IFC STEP files, runs a deterministic rule engine, exposes the evidence behind every result, and optionally uses Gemini or OpenAI to explain only server-verified findings.
 
-This is not a generic chatbot. Deterministic rules validate first, AI explains second.  
-The repository includes a C# extractor prototype boundary and does **not** claim production-ready Autodesk integration.
+This is not a generic BIM chatbot and the LLM is never the source of truth. Rules validate first; AI explains second.
 
-## Highlights
+## What works today
 
-- Deterministic rule engine for CAD/BIM-style requirements
-- Evidence-backed validation results
-- Explicit `pass` / `fail` / `unknown` / `not_applicable` status handling
-- Role-aware ADAS chat constrained to validation evidence
-- Gemini/OpenAI/fallback provider support with deterministic priority
-- Dark mode support for dashboard readability
-- Interactive drag-and-drop upload for normalized JSON model/requirements
-- Anti-hallucination prompt design and deterministic fallback mode
-- C#/.NET extractor prototype boundary for Revit/AutoCAD workflows
-- Vitest coverage for rule engine and AI prompt/fallback behavior
+- Native IFC2x3 and IFC4 upload through a server-side `web-ifc` parser
+- Normalized JSON model and requirement upload with Zod validation
+- Deterministic `pass`, `fail`, `unknown`, and `not_applicable` outcomes
+- Evidence records with observed values, expected values, and affected element IDs
+- Requirement-level pass rate, evaluation coverage, unknown/N/A counts, violations, and critical failures
+- Markdown evidence report export
+- Role-aware ADAS chat with Gemini, OpenAI, or a deterministic local fallback
+- Server-side revalidation of model data and requirements before any AI call
+- Structured AI responses whose requirement and element citations are verified against generated evidence
+- IFC diagnostics for units, extraction sources, containment, connectivity, and unsupported or missing data
+- Unit/API tests plus a Chromium E2E test covering IFC upload through report export
 
 ## Architecture
 
-`Revit/AutoCAD Extractor Prototype -> Normalized Model Data -> Deterministic Rule Engine -> Evidence -> Role-Aware ADAS Chat`
+```text
+IFC or normalized JSON
+        |
+        v
+Validated normalized model + requirements
+        |
+        v
+Deterministic rule engine
+        |
+        +--> evidence + compliance metrics + Markdown report
+        |
+        v
+Server-verified evidence context
+        |
+        +--> Gemini / OpenAI explanation
+        `--> deterministic fallback
+```
 
-- **Normalized model data:** `levels`, `rooms`, `doors`, relationships, and parameters
-- **Deterministic validation:** explicit rules evaluate requirements and return structured outcomes
-- **Evidence model:** each result includes affected element IDs and observed vs expected facts
-- **ADAS chat layer:** explains only what deterministic evidence supports
+The browser does not provide authoritative validation results to the chat layer. `/api/chat` validates the submitted model and requirements, reruns the rule engine on the server, and gives the provider only normalized BIM facts and generated evidence. Raw IFC files are not sent to AI providers.
 
-## Deterministic Validation Principle
+## Deterministic rules
 
-- The LLM is not the source of truth.
-- Missing data is never guessed.
-- Unknown input stays `unknown`; it is never converted into `pass` or `fail`.
-- AI explanations must not override deterministic rule results.
+The current rule engine supports:
 
-## Main Components
+- `minimum_room_area`
+- `minimum_door_width_for_room_type`
+- `room_has_connected_door`
 
-### Web App (`Next.js` + `TypeScript`)
+Every requirement produces structured outcomes. Missing facts remain `unknown`; non-applicable requirements remain `not_applicable`; neither is silently converted into a pass or failure.
 
-- Deterministic validation dashboard
-- Risk counters (pass/fail/unknown/critical)
-- Evidence-first result display
-- Role-aware ADAS chat panel with fallback/AI modes
+Compliance is deliberately split into separate metrics:
 
-### Rule Engine
+- **Pass rate:** passed requirements divided by decided, applicable requirements
+- **Evaluation coverage:** decided requirements divided by all applicable requirements
+- **Unknown:** applicable requirements that could not be decided from available evidence
+- **Not applicable:** excluded from both pass rate and coverage
+- **Critical failures:** failed requirements with critical severity
 
-- `MinimumRoomAreaRule`
-- `MinimumDoorWidthForRoomTypeRule`
-- `RoomHasConnectedDoorRule`
+Metrics are aggregated per requirement, so a rule affecting many elements cannot outweigh another requirement simply by producing more result rows.
 
-All rules produce structured evidence with affected element IDs.
+## IFC ingestion
 
-### C# Extractor Prototype (`csharp-extractor-prototype`)
+The `/api/ifc` route accepts IFC STEP files up to 20 MB and extracts a normalized model from:
 
-- Console-based prototype of Autodesk-side extraction boundary
-- `RevitElementExtractor` and `AutoCadElementExtractor` boundary classes
-- JSON export of normalized model payload
+- `IfcBuildingStorey`, `IfcSpace`, `IfcDoor`, and `IfcDoorType`
+- containment through `IfcRelContainedInSpatialStructure` and direct `IfcRelAggregates`
+- room areas from `IfcElementQuantity` or supported property-set values
+- door widths from the door instance, instance property sets, or its `IfcDoorType`
+- direct space-to-door boundaries
+- indirect space-to-door boundaries through `IfcOpeningElement` and `IfcRelFillsElement`
+- declared metre-based IFC units, including common SI prefixes, normalized to metres and square metres
 
-## C# / Revit / AutoCAD Boundary
+When door containment is missing, its storey may be inferred from an evidence-backed connection to a contained room. Elements that still cannot be assigned remain on an explicit `Unassigned IFC storey` instead of being guessed.
 
-This project does **not** include a production Revit or AutoCAD plugin.  
-The C# prototype demonstrates where a real Revit API or AutoCAD .NET API extractor would connect, mapping model facts into the normalized contract consumed by the validator.
+The diagnostics panel reports:
 
-Run C# prototype (if .NET SDK is installed):
+- detected IFC schema and length unit
+- storey, space, door, and boundary counts
+- direct versus opening-mediated connections
+- quantity/property area sources
+- instance/property/type door-width sources
+- inferred and unresolved storey assignments
+- warnings for missing units, semantics, areas, widths, and relationships
+
+Room classification currently uses a small English/German name heuristic for stockrooms, offices, meeting rooms, and corridors. Unrecognized spaces remain `unknown`.
+
+## Evidence-constrained ADAS chat
+
+ADAS chat works without an API key by using a deterministic fallback. If a provider is enabled, it must return structured JSON with evidence citations. The server rejects malformed output, unknown requirement IDs, invented element IDs, and citations not supported by deterministic results, then falls back safely.
+
+Additional API protections include:
+
+- a 1 MB chat request limit
+- Zod validation of the model, requirements, role, and question
+- 20 chat requests per client per minute with `429` and `Retry-After`
+- a 15-second timeout for Gemini and OpenAI calls
+
+Configure providers with:
+
+```bash
+# Preferred when both providers are configured
+GOOGLE_GENERATIVE_AI_API_KEY=your_key
+
+# Optional; defaults to gemini-2.5-flash
+GOOGLE_GENERATION_MODEL=gemini-2.5-flash
+
+# Used when Gemini is not configured; defaults to gpt-4o-mini
+OPENAI_API_KEY=your_key
+```
+
+Provider priority is Gemini, then OpenAI, then deterministic fallback.
+
+## Run locally
+
+Requirements:
+
+- Node.js 22
+- npm
+
+```bash
+npm ci
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000). No environment variables are required for deterministic validation and fallback chat.
+
+## Tests
+
+Run unit and API tests:
+
+```bash
+npm test
+```
+
+Run a production build:
+
+```bash
+npm run build
+```
+
+The browser E2E suite expects `@playwright/test` and Chromium. CI installs the pinned Playwright version without adding it to the production dependency tree:
+
+```bash
+npm install --no-save --package-lock=false @playwright/test@1.62.1
+npx playwright install chromium
+npm run build
+npm run test:e2e
+```
+
+The E2E test uploads a real IFC fixture, checks parser diagnostics and compliance metrics, downloads the Markdown report, and verifies its evidence content.
+
+## C# extractor boundary
+
+`csharp-extractor-prototype` demonstrates where a future Revit API or AutoCAD .NET integration can map Autodesk model facts into the normalized contract. It is a console prototype, not a production Autodesk plugin.
+
+If the .NET SDK is installed:
 
 ```bash
 dotnet run --project csharp-extractor-prototype/Adas.SpecExtractor.csproj
 ```
 
-## Evidence-Constrained ADAS Chat
+See [`csharp-extractor-prototype/README.md`](csharp-extractor-prototype/README.md) for details.
 
-ADAS chat runs after deterministic validation and is constrained to:
+## Known limitations
 
-- normalized model facts
-- validation results
-- rule evidence items
+- This is a functional prototype, not a certified compliance product.
+- There is no production Revit or AutoCAD add-in yet.
+- The IFC parser extracts a targeted semantic subset; it is not a full geometry engine.
+- Room-type inference is heuristic and intentionally leaves uncertain classifications unknown.
+- Supported deterministic requirement types are currently limited to the three rules listed above.
+- Rate limiting is in-memory and therefore instance-local; production deployment should use a shared store.
+- Uploaded data is not persisted in a database, but normalized model facts and evidence are sent to Gemini/OpenAI when the corresponding key is configured and the user requests an AI explanation.
+- External AI availability and output quality remain provider-dependent; invalid responses fall back to deterministic explanations.
 
-If evidence is insufficient, the assistant must respond with:
+## Validation philosophy
 
-`I cannot determine that from the available model evidence.`
-
-No API key is required for local use: fallback mode is deterministic.  
-Set provider keys to enable AI mode.
-
-## AI Provider Configuration
-
-ADAS Chat works without any AI key using deterministic fallback mode.
-
-- **Gemini:** set `GOOGLE_GENERATIVE_AI_API_KEY`
-- **Gemini model override (optional):** set `GOOGLE_GENERATION_MODEL` (default: `gemini-2.5-flash`)
-- **OpenAI:** set `OPENAI_API_KEY`
-
-Provider priority:
-
-1. `GOOGLE_GENERATIVE_AI_API_KEY` (Gemini)
-2. `OPENAI_API_KEY` (OpenAI)
-3. deterministic fallback
-
-AI responses remain evidence-constrained and do not override deterministic validation results.
-
-## Interactive JSON Upload
-
-The dashboard includes a **Data Source** module for uploading normalized JSON files:
-
-- Upload normalized **model JSON** (`levels`, `rooms`, `doors`) with cross-reference integrity checks
-- Upload **requirements JSON** (deterministic requirement array)
-- Files are parsed and validated client-side with Zod before use
-- Invalid uploads show clear errors and do not replace current data
-- "Reset to sample data" restores original demo inputs
-
-Privacy and architecture notes:
-
-- Uploaded files are **not** sent to a backend
-- Uploaded files are **not** persisted in a database
-- Validation reruns locally against currently loaded normalized JSON
-- ADAS Chat answers are based on the currently loaded model and deterministic validation evidence
-
-The model upload supports normalized JSON and native IFC STEP files. IFC ingestion runs through the `web-ifc` WASM parser on a Node.js API route and currently extracts:
-
-- `IfcBuildingStorey`, `IfcSpace`, and `IfcDoor` entities
-- space floor area from `IfcElementQuantity` / `IfcQuantityArea`
-- door width from `OverallWidth`
-- storey containment from `IfcRelContainedInSpatialStructure` and direct `IfcRelAggregates`
-- explicit space-to-door connectivity from `IfcRelSpaceBoundary`
-
-The parser does not infer missing room semantics or fabricate connectivity. Unknown room classifications and absent boundary/width data are returned as diagnostics and remain unknown to the deterministic layer.
-
-## Known Limitations
-
-- Not a production Autodesk plugin
-- Uses normalized sample CAD/BIM model data
-- C# extractor is a prototype integration boundary
-- AI mode depends on external provider availability and API key
-- Geometry/spatial reasoning is simplified
-- No IFC/Revit file ingestion pipeline yet
-
-## Run Locally
-
-```bash
-npm install
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000).
-
-## Run Tests
-
-```bash
-npm test
-```
+- Never treat an LLM response as a validation result.
+- Never guess missing BIM facts.
+- Keep `unknown` distinct from `fail`.
+- Keep coverage distinct from pass rate.
+- Preserve evidence and affected element IDs for every conclusion.
+- Prefer a deterministic fallback over an unsupported explanation.
