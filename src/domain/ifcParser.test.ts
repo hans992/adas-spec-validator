@@ -30,4 +30,26 @@ describe("parseIfcBytes", () => {
     await expect(parseIfcBytes(new TextEncoder().encode("not really an IFC"))).rejects.toThrow("not a valid IFC");
     await expect(parseIfcBytes(new Uint8Array())).rejects.toThrow("empty");
   });
+
+  it("converts millimetre models and falls back to property-set dimensions", async () => {
+    const bytes = await readFile(resolve(process.cwd(), "test/fixtures/millimetre-property-building.ifc"));
+    const result = await parseIfcBytes(bytes);
+
+    expect(result.diagnostics.lengthUnit).toBe("millimetre");
+    expect(result.diagnostics.areaSources).toEqual({ quantities: 0, properties: 1 });
+    expect(result.diagnostics.doorWidthSources).toEqual({ instances: 0, properties: 1 });
+    expect(result.model.rooms[0]).toMatchObject({ roomType: "office", areaSqm: 12.5 });
+    expect(result.model.doors[0]).toMatchObject({ widthM: 0.9 });
+  });
+
+  it("supports IFC2x3 coordination-view models", async () => {
+    const bytes = await readFile(resolve(process.cwd(), "test/fixtures/ifc2x3-building.ifc"));
+    const result = await parseIfcBytes(bytes);
+
+    expect(result.diagnostics.schema).toContain("IFC2X3");
+    expect(result.diagnostics.lengthUnit).toBe("metre");
+    expect(result.model.rooms[0]).toMatchObject({ roomType: "meeting_room", areaSqm: 18.25 });
+    expect(result.model.doors[0]).toMatchObject({ widthM: 1 });
+    expect(result.diagnostics.boundariesFound).toBe(1);
+  });
 });
