@@ -1,6 +1,7 @@
 import {
   IFCBUILDINGSTOREY,
   IFCDOOR,
+  IFCDOORTYPE,
   IFCELEMENTQUANTITY,
   IFCPROPERTYSET,
   IFCPROPERTYSINGLEVALUE,
@@ -8,6 +9,7 @@ import {
   IFCRELAGGREGATES,
   IFCRELCONTAINEDINSPATIALSTRUCTURE,
   IFCRELDEFINESBYPROPERTIES,
+  IFCRELDEFINESBYTYPE,
   IFCRELFILLSELEMENT,
   IFCRELSPACEBOUNDARY,
   IFCSIUNIT,
@@ -27,7 +29,8 @@ export interface IfcParseDiagnostics {
   boundarySources: { direct: number; throughOpenings: number };
   lengthUnit: string;
   areaSources: { quantities: number; properties: number };
-  doorWidthSources: { instances: number; properties: number };
+  doorWidthSources: { instances: number; properties: number; types: number };
+  containment: { inferredDoorStoreys: number; unassignedSpaces: number; unassignedDoors: number };
   warnings: string[];
 }
 
@@ -215,7 +218,6 @@ export async function parseIfcBytes(bytes: Uint8Array): Promise<IfcParseResult> 
     const levelForElement = (expressId: number): Level => {
       const mapped = levelsByExpressId.get(containerByElement.get(expressId) ?? -1);
       if (mapped) return mapped;
-      if (levelsByExpressId.size === 1) return [...levelsByExpressId.values()][0];
       unassignedLevel ??= { id: "ifc:level:unassigned", name: "Unassigned IFC storey" };
       return unassignedLevel;
     };
@@ -242,16 +244,30 @@ export async function parseIfcBytes(bytes: Uint8Array): Promise<IfcParseResult> 
 
     const propertyWidthsRaw = readNumericProperties(api, modelId, /^(overallwidth|clearwidth|width)$/);
     const propertyWidths = new Map([...propertyWidthsRaw].map(([id, width]) => [id, width * lengthUnit.scale]));
+    const doorTypeIds = new Set(entityIds(api, modelId, IFCDOORTYPE, true));
+    const typeByDoor = new Map<number, number>();
+    for (const relationId of entityIds(api, modelId, IFCRELDEFINESBYTYPE, true)) {
+      const relation = api.GetLine(modelId, relationId) as Record<string, unknown>;
+      const typeId = refId(relation.RelatingType as IfcRef);
+      if (typeId === undefined || !doorTypeIds.has(typeId)) continue;
+      for (const doorId of refs(relation.RelatedObjects)) typeByDoor.set(doorId, typeId);
+    }
     const doorsByExpressId = new Map<number, Door>();
     let instanceDoorWidths = 0;
     let propertyDoorWidths = 0;
+    let typeDoorWidths = 0;
     for (const id of doorIds) {
       const line = api.GetLine(modelId, id) as Record<string, unknown>;
       const instanceWidth = valueOf<number>(line.OverallWidth as IfcValue);
-      const width = instanceWidth !== undefined ? instanceWidth * lengthUnit.scale : propertyWidths.get(id);
+      const instancePropertyWidth = propertyWidths.get(id);
+      const typeWidth = propertyWidths.get(typeByDoor.get(id) ?? -1);
+      const width = instanceWidth !== undefined
+        ? instanceWidth * lengthUnit.scale
+        : instancePropertyWidth ?? typeWidth;
       if (instanceWidth !== undefined) instanceDoorWidths += 1;
-      else if (width !== undefined) propertyDoorWidths += 1;
-      if (width === undefined) warnings.push(`IfcDoor #${id} has no OverallWidth value.`);
+      else if (instancePropertyWidth !== undefined) propertyDoorWidths += 1;
+      else if (typeWidth !== undefined) typeDoorWidths += 1;
+      if (width === undefined) warnings.push(`IfcDoor #${id} has no supported width on its instance, property sets or IfcDoorType.`);
       doorsByExpressId.set(id, {
         id: stableId("door", line, id),
         name: valueOf<string>(line.Name as IfcValue) ?? `Door ${id}`,
@@ -273,6 +289,7 @@ export async function parseIfcBytes(bytes: Uint8Array): Promise<IfcParseResult> 
 
     let directBoundaries = 0;
     let openingBoundaries = 0;
+    let inferredDoorStoreys = 0;
     for (const relationId of entityIds(api, modelId, IFCRELSPACEBOUNDARY, true)) {
       const relation = api.GetLine(modelId, relationId) as Record<string, unknown>;
       const space = roomsByExpressId.get(refId(relation.RelatingSpace as IfcRef) ?? -1);
@@ -283,6 +300,10 @@ export async function parseIfcBytes(bytes: Uint8Array): Promise<IfcParseResult> 
       if (!space || !door) continue;
       if (!space.connectedDoorIds?.includes(door.id)) space.connectedDoorIds?.push(door.id);
       if (!door.connectedRoomIds?.includes(space.id)) door.connectedRoomIds?.push(space.id);
+      if (door.levelId === "ifc:level:unassigned" && space.levelId !== "ifc:level:unassigned") {
+        door.levelId = space.levelId;
+        inferredDoorStoreys += 1;
+      }
       if (directDoor) directBoundaries += 1;
       else openingBoundaries += 1;
     }
@@ -290,6 +311,11 @@ export async function parseIfcBytes(bytes: Uint8Array): Promise<IfcParseResult> 
     if (doorsByExpressId.size > 0 && boundariesFound === 0) {
       warnings.push("No supported space-to-door boundary relationships were found.");
     }
+
+    const unassignedSpaces = [...roomsByExpressId.values()].filter((room) => room.levelId === "ifc:level:unassigned").length;
+    const unassignedDoors = [...doorsByExpressId.values()].filter((door) => door.levelId === "ifc:level:unassigned").length;
+    if (unassignedSpaces > 0) warnings.push(`${unassignedSpaces} IfcSpace element(s) could not be assigned to a storey.`);
+    if (unassignedDoors > 0) warnings.push(`${unassignedDoors} IfcDoor element(s) could not be assigned or inferred to a storey.`);
 
     const levels = [...levelsByExpressId.values()];
     if (unassignedLevel) levels.push(unassignedLevel);
@@ -310,7 +336,8 @@ export async function parseIfcBytes(bytes: Uint8Array): Promise<IfcParseResult> 
         boundarySources: { direct: directBoundaries, throughOpenings: openingBoundaries },
         lengthUnit: lengthUnit.label,
         areaSources: { quantities: quantityAreas.size, properties: [...propertyAreas.keys()].filter((id) => !quantityAreas.has(id)).length },
-        doorWidthSources: { instances: instanceDoorWidths, properties: propertyDoorWidths },
+        doorWidthSources: { instances: instanceDoorWidths, properties: propertyDoorWidths, types: typeDoorWidths },
+        containment: { inferredDoorStoreys, unassignedSpaces, unassignedDoors },
         warnings
       }
     };
