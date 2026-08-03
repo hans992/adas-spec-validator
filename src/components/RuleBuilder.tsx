@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { PlusCircle, Shield, AlertCircle } from "lucide-react";
-import type { Requirement, RoomType, ValidationSeverity } from "@/domain/types";
+import { requirementSchema } from "@/domain/schemas";
+import type { DoorQuantifier, Requirement, RoomType, ValidationSeverity } from "@/domain/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -19,7 +20,10 @@ export function RuleBuilder({ onAddRequirement }: RuleBuilderProps) {
   const [severity, setSeverity] = useState<ValidationSeverity>("warning");
   const [roomType, setRoomType] = useState<RoomType>("stockroom");
   const [minArea, setMinArea] = useState(15);
+  const [maxArea, setMaxArea] = useState<number | "">("");
   const [minDoorWidth, setMinDoorWidth] = useState(0.85);
+  const [maxDoorWidth, setMaxDoorWidth] = useState<number | "">("");
+  const [doorQuantifier, setDoorQuantifier] = useState<DoorQuantifier>("all");
 
   const [error, setError] = useState("");
 
@@ -42,7 +46,8 @@ export function RuleBuilder({ onAddRequirement }: RuleBuilderProps) {
         type: "minimum_room_area",
         severity,
         roomType,
-        minAreaSqm: Number(minArea)
+        minAreaSqm: Number(minArea),
+        ...(maxArea === "" ? {} : { maxAreaSqm: Number(maxArea) })
       };
     } else if (ruleType === "minimum_door_width_for_room_type") {
       newReq = {
@@ -51,7 +56,9 @@ export function RuleBuilder({ onAddRequirement }: RuleBuilderProps) {
         type: "minimum_door_width_for_room_type",
         severity,
         roomType,
-        minDoorWidthM: Number(minDoorWidth)
+        minDoorWidthM: Number(minDoorWidth),
+        ...(maxDoorWidth === "" ? {} : { maxDoorWidthM: Number(maxDoorWidth) }),
+        quantifier: doorQuantifier
       };
     } else {
       newReq = {
@@ -62,7 +69,13 @@ export function RuleBuilder({ onAddRequirement }: RuleBuilderProps) {
       };
     }
 
-    onAddRequirement(newReq);
+    const parsed = requirementSchema.safeParse(newReq);
+    if (!parsed.success) {
+      setError(parsed.error.issues[0]?.message ?? "Invalid rule configuration.");
+      return;
+    }
+
+    onAddRequirement(parsed.data);
 
     // Reset Form
     setTitle("");
@@ -199,7 +212,7 @@ export function RuleBuilder({ onAddRequirement }: RuleBuilderProps) {
 
           {/* Dynamic Inputs */}
           {ruleType === "minimum_room_area" && (
-            <div>
+            <div className="space-y-2">
               <div className="flex justify-between text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">
                 <label htmlFor="rule-min-area">Minimum Area</label>
                 <span className="text-indigo-500 dark:text-indigo-400 font-mono font-bold">{minArea} sqm</span>
@@ -214,11 +227,23 @@ export function RuleBuilder({ onAddRequirement }: RuleBuilderProps) {
                 onChange={(e) => setMinArea(Number(e.target.value))}
                 className={`w-full ${focusRing}`}
               />
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                Maximum Area (optional)
+                <input
+                  type="number"
+                  min={minArea}
+                  step={0.5}
+                  value={maxArea}
+                  onChange={(e) => setMaxArea(e.target.value === "" ? "" : Number(e.target.value))}
+                  placeholder="No maximum"
+                  className={`mt-0.5 w-full rounded border border-slate-300 bg-white/70 px-2 py-1.5 text-xs normal-case dark:border-slate-800 dark:bg-slate-950 ${focusRing}`}
+                />
+              </label>
             </div>
           )}
 
           {ruleType === "minimum_door_width_for_room_type" && (
-            <div>
+            <div className="space-y-2">
               <div className="flex justify-between text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">
                 <label htmlFor="rule-min-door-width">Minimum Door Width</label>
                 <span className="text-indigo-500 dark:text-indigo-400 font-mono font-bold">{minDoorWidth}m</span>
@@ -233,6 +258,31 @@ export function RuleBuilder({ onAddRequirement }: RuleBuilderProps) {
                 onChange={(e) => setMinDoorWidth(Number(e.target.value))}
                 className={`w-full ${focusRing}`}
               />
+              <div className="grid grid-cols-2 gap-2">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Connected Doors
+                  <select
+                    value={doorQuantifier}
+                    onChange={(e) => setDoorQuantifier(e.target.value as DoorQuantifier)}
+                    className={`mt-0.5 w-full rounded border border-slate-300 bg-white/70 px-2 py-1.5 text-xs normal-case dark:border-slate-800 dark:bg-slate-950 ${focusRing}`}
+                  >
+                    <option value="all">All must match</option>
+                    <option value="any">Any may match</option>
+                  </select>
+                </label>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Maximum (optional)
+                  <input
+                    type="number"
+                    min={minDoorWidth}
+                    step={0.05}
+                    value={maxDoorWidth}
+                    onChange={(e) => setMaxDoorWidth(e.target.value === "" ? "" : Number(e.target.value))}
+                    placeholder="No maximum"
+                    className={`mt-0.5 w-full rounded border border-slate-300 bg-white/70 px-2 py-1.5 text-xs normal-case dark:border-slate-800 dark:bg-slate-950 ${focusRing}`}
+                  />
+                </label>
+              </div>
             </div>
           )}
 
