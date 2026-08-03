@@ -8,6 +8,7 @@ import {
   IFCRELAGGREGATES,
   IFCRELCONTAINEDINSPATIALSTRUCTURE,
   IFCRELDEFINESBYPROPERTIES,
+  IFCRELFILLSELEMENT,
   IFCRELSPACEBOUNDARY,
   IFCSIUNIT,
   IFCSPACE,
@@ -23,6 +24,7 @@ export interface IfcParseDiagnostics {
   spacesFound: number;
   doorsFound: number;
   boundariesFound: number;
+  boundarySources: { direct: number; throughOpenings: number };
   lengthUnit: string;
   areaSources: { quantities: number; properties: number };
   doorWidthSources: { instances: number; properties: number };
@@ -259,18 +261,34 @@ export async function parseIfcBytes(bytes: Uint8Array): Promise<IfcParseResult> 
       });
     }
 
-    let boundariesFound = 0;
+    const doorByOpening = new Map<number, number>();
+    for (const relationId of entityIds(api, modelId, IFCRELFILLSELEMENT, true)) {
+      const relation = api.GetLine(modelId, relationId) as Record<string, unknown>;
+      const openingId = refId(relation.RelatingOpeningElement as IfcRef);
+      const doorId = refId(relation.RelatedBuildingElement as IfcRef);
+      if (openingId !== undefined && doorId !== undefined && doorsByExpressId.has(doorId)) {
+        doorByOpening.set(openingId, doorId);
+      }
+    }
+
+    let directBoundaries = 0;
+    let openingBoundaries = 0;
     for (const relationId of entityIds(api, modelId, IFCRELSPACEBOUNDARY, true)) {
       const relation = api.GetLine(modelId, relationId) as Record<string, unknown>;
       const space = roomsByExpressId.get(refId(relation.RelatingSpace as IfcRef) ?? -1);
-      const door = doorsByExpressId.get(refId(relation.RelatedBuildingElement as IfcRef) ?? -1);
+      const boundaryElementId = refId(relation.RelatedBuildingElement as IfcRef);
+      const directDoor = boundaryElementId === undefined ? undefined : doorsByExpressId.get(boundaryElementId);
+      const openingDoorId = boundaryElementId === undefined ? undefined : doorByOpening.get(boundaryElementId);
+      const door = directDoor ?? (openingDoorId === undefined ? undefined : doorsByExpressId.get(openingDoorId));
       if (!space || !door) continue;
       if (!space.connectedDoorIds?.includes(door.id)) space.connectedDoorIds?.push(door.id);
       if (!door.connectedRoomIds?.includes(space.id)) door.connectedRoomIds?.push(space.id);
-      boundariesFound += 1;
+      if (directDoor) directBoundaries += 1;
+      else openingBoundaries += 1;
     }
+    const boundariesFound = directBoundaries + openingBoundaries;
     if (doorsByExpressId.size > 0 && boundariesFound === 0) {
-      warnings.push("No direct IfcRelSpaceBoundary relationships between spaces and doors were found.");
+      warnings.push("No supported space-to-door boundary relationships were found.");
     }
 
     const levels = [...levelsByExpressId.values()];
@@ -289,6 +307,7 @@ export async function parseIfcBytes(bytes: Uint8Array): Promise<IfcParseResult> 
         spacesFound: spaceIds.length,
         doorsFound: doorIds.length,
         boundariesFound,
+        boundarySources: { direct: directBoundaries, throughOpenings: openingBoundaries },
         lengthUnit: lengthUnit.label,
         areaSources: { quantities: quantityAreas.size, properties: [...propertyAreas.keys()].filter((id) => !quantityAreas.has(id)).length },
         doorWidthSources: { instances: instanceDoorWidths, properties: propertyDoorWidths },
