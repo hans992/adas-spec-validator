@@ -314,6 +314,7 @@ ${res.evidence
             
             <div className="flex items-center gap-2.5 self-start md:self-auto">
               <Button
+                data-testid="export-report"
                 variant="outline"
                 size="sm"
                 onClick={exportComplianceReport}
@@ -340,7 +341,7 @@ ${res.evidence
           <Card className="flex items-center justify-between p-4 overflow-hidden shadow-md">
             <div className="space-y-1 text-left">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Requirement Pass Rate</p>
-              <p className="text-2xl font-extrabold tracking-tight">{passRateDisplay}</p>
+              <p data-testid="pass-rate" className="text-2xl font-extrabold tracking-tight">{passRateDisplay}</p>
               <p className="text-[10px] text-slate-500">{metrics.compliantRequirements} of {metrics.determinedRequirements} determined requirements pass</p>
             </div>
             <div className="relative flex items-center justify-center">
@@ -369,7 +370,7 @@ ${res.evidence
             { label: "Violated Requirements", value: metrics.violatedRequirements, detail: `${metrics.criticalFailures} critical`, color: "text-rose-500 bg-rose-500/10", border: "border-rose-200/50 dark:border-rose-950/50", criticalCount: metrics.criticalFailures },
             { label: "Not Applicable", value: metrics.notApplicableRequirements, detail: "Excluded from rates", color: "text-amber-500 bg-amber-500/10", border: "border-amber-200/50 dark:border-amber-950/50", criticalCount: undefined as number | undefined }
           ].map((stat, i) => (
-            <Card key={i} className={`p-4 flex flex-col justify-between shadow-md border ${stat.border}`}>
+            <Card key={i} data-testid={stat.label === "Evaluation Coverage" ? "evaluation-coverage" : undefined} className={`p-4 flex flex-col justify-between shadow-md border ${stat.border}`}>
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{stat.label}</span>
                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${stat.color}`}>OUTCOME</span>
@@ -483,7 +484,7 @@ ${res.evidence
                         : "border-slate-200 hover:border-indigo-400 hover:bg-slate-50 dark:border-slate-800 dark:hover:border-slate-700"
                     }`}
                   >
-                    <input {...modelDropzone.getInputProps()} />
+                    <input {...modelDropzone.getInputProps({ "aria-label": "Upload BIM model" })} />
                     <div className="flex items-start gap-3">
                       <UploadCloud className="mt-0.5 h-4 w-4 text-slate-500 flex-shrink-0" />
                       <div className="space-y-1">
@@ -525,9 +526,18 @@ ${res.evidence
                   </div>
                 </div>
                 {ifcDiagnostics && (
-                  <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 text-left text-[10px] dark:border-emerald-950/50 dark:bg-emerald-950/10">
+                  <div data-testid="ifc-diagnostics" className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 text-left text-[10px] dark:border-emerald-950/50 dark:bg-emerald-950/10">
                     <p className="font-semibold text-emerald-700 dark:text-emerald-400">
-                      {ifcDiagnostics.schema}: {ifcDiagnostics.storeysFound} storeys · {ifcDiagnostics.spacesFound} spaces · {ifcDiagnostics.doorsFound} doors · {ifcDiagnostics.boundariesFound} direct boundaries
+                      {ifcDiagnostics.schema}: {ifcDiagnostics.storeysFound} storeys · {ifcDiagnostics.spacesFound} spaces · {ifcDiagnostics.doorsFound} doors · {ifcDiagnostics.boundariesFound} resolved boundaries
+                    </p>
+                    <p className="mt-1 text-slate-600 dark:text-slate-400">
+                      Units: {ifcDiagnostics.lengthUnit} · Areas: {ifcDiagnostics.areaSources.quantities} quantities + {ifcDiagnostics.areaSources.properties} properties · Door widths: {ifcDiagnostics.doorWidthSources.instances} instances + {ifcDiagnostics.doorWidthSources.properties} properties + {ifcDiagnostics.doorWidthSources.types} types
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      Door links: {ifcDiagnostics.boundarySources.direct} direct + {ifcDiagnostics.boundarySources.throughOpenings} through openings
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      Storeys: {ifcDiagnostics.containment.inferredDoorStoreys} door assignments inferred · {ifcDiagnostics.containment.unassignedSpaces} spaces + {ifcDiagnostics.containment.unassignedDoors} doors unassigned
                     </p>
                     {ifcDiagnostics.warnings.map((warning) => (
                       <p key={warning} className="mt-1 text-amber-700 dark:text-amber-400">Warning: {warning}</p>

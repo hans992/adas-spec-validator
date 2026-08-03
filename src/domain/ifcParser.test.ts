@@ -30,4 +30,74 @@ describe("parseIfcBytes", () => {
     await expect(parseIfcBytes(new TextEncoder().encode("not really an IFC"))).rejects.toThrow("not a valid IFC");
     await expect(parseIfcBytes(new Uint8Array())).rejects.toThrow("empty");
   });
+
+  it("converts millimetre models and falls back to property-set dimensions", async () => {
+    const bytes = await readFile(resolve(process.cwd(), "test/fixtures/millimetre-property-building.ifc"));
+    const result = await parseIfcBytes(bytes);
+
+    expect(result.diagnostics.lengthUnit).toBe("millimetre");
+    expect(result.diagnostics.areaSources).toEqual({ quantities: 0, properties: 1 });
+    expect(result.diagnostics.doorWidthSources).toEqual({ instances: 0, properties: 1, types: 0 });
+    expect(result.model.rooms[0]).toMatchObject({ roomType: "office", areaSqm: 12.5 });
+    expect(result.model.doors[0]).toMatchObject({ widthM: 0.9 });
+  });
+
+  it("supports IFC2x3 coordination-view models", async () => {
+    const bytes = await readFile(resolve(process.cwd(), "test/fixtures/ifc2x3-building.ifc"));
+    const result = await parseIfcBytes(bytes);
+
+    expect(result.diagnostics.schema).toContain("IFC2X3");
+    expect(result.diagnostics.lengthUnit).toBe("metre");
+    expect(result.model.rooms[0]).toMatchObject({ roomType: "meeting_room", areaSqm: 18.25 });
+    expect(result.model.doors[0]).toMatchObject({ widthM: 1 });
+    expect(result.diagnostics.boundariesFound).toBe(1);
+  });
+
+  it("assigns multiple storeys and resolves doors through IfcOpeningElement", async () => {
+    const bytes = await readFile(resolve(process.cwd(), "test/fixtures/multistorey-opening-building.ifc"));
+    const result = await parseIfcBytes(bytes);
+
+    expect(result.diagnostics).toMatchObject({
+      storeysFound: 2,
+      spacesFound: 2,
+      doorsFound: 2,
+      boundariesFound: 2,
+      boundarySources: { direct: 0, throughOpenings: 2 }
+    });
+    expect(result.model.levels.map((level) => level.name)).toEqual(["Ground Floor", "First Floor"]);
+
+    const groundRoom = result.model.rooms.find((room) => room.name === "Ground Office");
+    const firstRoom = result.model.rooms.find((room) => room.name === "First Meeting Room");
+    const groundDoor = result.model.doors.find((door) => door.name === "Ground Door");
+    const firstDoor = result.model.doors.find((door) => door.name === "First Door");
+
+    expect(groundRoom?.levelId).toBe(result.model.levels[0].id);
+    expect(firstRoom?.levelId).toBe(result.model.levels[1].id);
+    expect(groundDoor?.levelId).toBe(result.model.levels[0].id);
+    expect(firstDoor?.levelId).toBe(result.model.levels[1].id);
+    expect(groundRoom?.connectedDoorIds).toEqual([groundDoor?.id]);
+    expect(firstRoom?.connectedDoorIds).toEqual([firstDoor?.id]);
+    expect(groundDoor?.connectedRoomIds).toEqual([groundRoom?.id]);
+    expect(firstDoor?.connectedRoomIds).toEqual([firstRoom?.id]);
+  });
+
+  it("uses IfcDoorType width and infers only evidenced door storeys", async () => {
+    const bytes = await readFile(resolve(process.cwd(), "test/fixtures/door-type-unassigned-building.ifc"));
+    const result = await parseIfcBytes(bytes);
+
+    const assignedRoom = result.model.rooms.find((room) => room.name === "Assigned Office");
+    const orphanRoom = result.model.rooms.find((room) => room.name === "Orphan Office");
+    const typedDoor = result.model.doors.find((door) => door.name === "Typed Door");
+    const orphanDoor = result.model.doors.find((door) => door.name === "Orphan Door");
+
+    expect(typedDoor).toMatchObject({ widthM: 0.95, levelId: assignedRoom?.levelId });
+    expect(orphanRoom?.levelId).toBe("ifc:level:unassigned");
+    expect(orphanDoor?.levelId).toBe("ifc:level:unassigned");
+    expect(result.diagnostics.doorWidthSources).toEqual({ instances: 0, properties: 0, types: 1 });
+    expect(result.diagnostics.containment).toEqual({ inferredDoorStoreys: 1, unassignedSpaces: 1, unassignedDoors: 1 });
+    expect(result.diagnostics.warnings).toEqual(expect.arrayContaining([
+      "1 IfcSpace element(s) could not be assigned to a storey.",
+      "1 IfcDoor element(s) could not be assigned or inferred to a storey."
+    ]));
+  });
 });
