@@ -37,7 +37,7 @@ describe("parseIfcBytes", () => {
 
     expect(result.diagnostics.lengthUnit).toBe("millimetre");
     expect(result.diagnostics.areaSources).toEqual({ quantities: 0, properties: 1 });
-    expect(result.diagnostics.doorWidthSources).toEqual({ instances: 0, properties: 1 });
+    expect(result.diagnostics.doorWidthSources).toEqual({ instances: 0, properties: 1, types: 0 });
     expect(result.model.rooms[0]).toMatchObject({ roomType: "office", areaSqm: 12.5 });
     expect(result.model.doors[0]).toMatchObject({ widthM: 0.9 });
   });
@@ -79,5 +79,25 @@ describe("parseIfcBytes", () => {
     expect(firstRoom?.connectedDoorIds).toEqual([firstDoor?.id]);
     expect(groundDoor?.connectedRoomIds).toEqual([groundRoom?.id]);
     expect(firstDoor?.connectedRoomIds).toEqual([firstRoom?.id]);
+  });
+
+  it("uses IfcDoorType width and infers only evidenced door storeys", async () => {
+    const bytes = await readFile(resolve(process.cwd(), "test/fixtures/door-type-unassigned-building.ifc"));
+    const result = await parseIfcBytes(bytes);
+
+    const assignedRoom = result.model.rooms.find((room) => room.name === "Assigned Office");
+    const orphanRoom = result.model.rooms.find((room) => room.name === "Orphan Office");
+    const typedDoor = result.model.doors.find((door) => door.name === "Typed Door");
+    const orphanDoor = result.model.doors.find((door) => door.name === "Orphan Door");
+
+    expect(typedDoor).toMatchObject({ widthM: 0.95, levelId: assignedRoom?.levelId });
+    expect(orphanRoom?.levelId).toBe("ifc:level:unassigned");
+    expect(orphanDoor?.levelId).toBe("ifc:level:unassigned");
+    expect(result.diagnostics.doorWidthSources).toEqual({ instances: 0, properties: 0, types: 1 });
+    expect(result.diagnostics.containment).toEqual({ inferredDoorStoreys: 1, unassignedSpaces: 1, unassignedDoors: 1 });
+    expect(result.diagnostics.warnings).toEqual(expect.arrayContaining([
+      "1 IfcSpace element(s) could not be assigned to a storey.",
+      "1 IfcDoor element(s) could not be assigned or inferred to a storey."
+    ]));
   });
 });
