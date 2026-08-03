@@ -2,11 +2,14 @@ import {
   IFCBUILDINGSTOREY,
   IFCDOOR,
   IFCELEMENTQUANTITY,
+  IFCPROPERTYSET,
+  IFCPROPERTYSINGLEVALUE,
   IFCQUANTITYAREA,
   IFCRELAGGREGATES,
   IFCRELCONTAINEDINSPATIALSTRUCTURE,
   IFCRELDEFINESBYPROPERTIES,
   IFCRELSPACEBOUNDARY,
+  IFCSIUNIT,
   IFCSPACE,
   IfcAPI
 } from "web-ifc";
@@ -20,6 +23,9 @@ export interface IfcParseDiagnostics {
   spacesFound: number;
   doorsFound: number;
   boundariesFound: number;
+  lengthUnit: string;
+  areaSources: { quantities: number; properties: number };
+  doorWidthSources: { instances: number; properties: number };
   warnings: string[];
 }
 
@@ -78,7 +84,53 @@ function inferRoomType(line: Record<string, unknown>): RoomType {
   return "unknown";
 }
 
-function readAreaQuantities(api: IfcAPI, modelId: number): Map<number, number> {
+function readLengthScale(api: IfcAPI, modelId: number): { scale: number; label: string } {
+  for (const id of entityIds(api, modelId, IFCSIUNIT)) {
+    const unit = api.GetLine(modelId, id) as Record<string, unknown>;
+    const unitType = valueOf<string>(unit.UnitType as IfcValue)?.toUpperCase();
+    const name = valueOf<string>(unit.Name as IfcValue)?.toUpperCase();
+    if (unitType !== "LENGTHUNIT" || name !== "METRE") continue;
+    const prefix = valueOf<string>(unit.Prefix as IfcValue)?.toUpperCase();
+    const scales: Record<string, number> = {
+      MILLI: 0.001,
+      CENTI: 0.01,
+      DECI: 0.1,
+      KILO: 1000
+    };
+    return { scale: prefix ? (scales[prefix] ?? 1) : 1, label: prefix ? `${prefix.toLowerCase()}metre` : "metre" };
+  }
+  return { scale: 1, label: "metre (assumed; IFC length unit not declared)" };
+}
+
+function readNumericProperties(
+  api: IfcAPI,
+  modelId: number,
+  acceptedNames: RegExp
+): Map<number, number> {
+  const values = new Map<number, number>();
+  const propertySets = new Map<number, Record<string, unknown>>();
+  for (const id of entityIds(api, modelId, IFCPROPERTYSET)) {
+    propertySets.set(id, api.GetLine(modelId, id) as Record<string, unknown>);
+  }
+  for (const relationId of entityIds(api, modelId, IFCRELDEFINESBYPROPERTIES)) {
+    const relation = api.GetLine(modelId, relationId) as Record<string, unknown>;
+    const definition = propertySets.get(refId(relation.RelatingPropertyDefinition as IfcRef) ?? -1);
+    if (!definition) continue;
+    let selected: number | undefined;
+    for (const propertyId of refs(definition.HasProperties)) {
+      const property = api.GetLine(modelId, propertyId) as Record<string, unknown>;
+      if (property.type !== IFCPROPERTYSINGLEVALUE) continue;
+      const name = valueOf<string>(property.Name as IfcValue)?.replace(/[\s_-]/g, "").toLowerCase() ?? "";
+      if (!acceptedNames.test(name)) continue;
+      const numeric = valueOf<number>(property.NominalValue as IfcValue);
+      if (numeric !== undefined && numeric > 0) selected = numeric;
+    }
+    if (selected !== undefined) for (const objectId of refs(relation.RelatedObjects)) values.set(objectId, selected);
+  }
+  return values;
+}
+
+function readAreaQuantities(api: IfcAPI, modelId: number, areaScale: number): Map<number, number> {
   const areas = new Map<number, number>();
   const elementQuantities = new Map<number, Record<string, unknown>>();
   for (const id of entityIds(api, modelId, IFCELEMENTQUANTITY)) {
@@ -99,7 +151,7 @@ function readAreaQuantities(api: IfcAPI, modelId: number): Map<number, number> {
       if (!/netfloorarea|grossfloorarea|floorarea|area/.test(name)) continue;
       const area = valueOf<number>(quantity.AreaValue as IfcValue);
       if (area !== undefined && area > 0) {
-        selectedArea = area;
+        selectedArea = area * areaScale;
         if (name === "netfloorarea") break;
       }
     }
@@ -128,6 +180,8 @@ export async function parseIfcBytes(bytes: Uint8Array): Promise<IfcParseResult> 
     modelId = api.OpenModel(bytes, { COORDINATE_TO_ORIGIN: false });
     const schema = api.GetModelSchema(modelId);
     const warnings: string[] = [];
+    const lengthUnit = readLengthScale(api, modelId);
+    if (lengthUnit.label.includes("assumed")) warnings.push("No IFC length unit was declared; metre values were assumed.");
     const storeyIds = entityIds(api, modelId, IFCBUILDINGSTOREY);
     const spaceIds = entityIds(api, modelId, IFCSPACE, true);
     const doorIds = entityIds(api, modelId, IFCDOOR, true);
@@ -164,7 +218,10 @@ export async function parseIfcBytes(bytes: Uint8Array): Promise<IfcParseResult> 
       return unassignedLevel;
     };
 
-    const areaByElement = readAreaQuantities(api, modelId);
+    const quantityAreas = readAreaQuantities(api, modelId, lengthUnit.scale ** 2);
+    const propertyAreasRaw = readNumericProperties(api, modelId, /^(netfloorarea|grossfloorarea|floorarea|area)$/);
+    const propertyAreas = new Map([...propertyAreasRaw].map(([id, area]) => [id, area * lengthUnit.scale ** 2]));
+    const areaByElement = new Map([...propertyAreas, ...quantityAreas]);
     const roomsByExpressId = new Map<number, Room>();
     for (const id of spaceIds) {
       const line = api.GetLine(modelId, id) as Record<string, unknown>;
@@ -178,12 +235,20 @@ export async function parseIfcBytes(bytes: Uint8Array): Promise<IfcParseResult> 
         areaSqm: areaByElement.get(id),
         connectedDoorIds: []
       });
+      if (!areaByElement.has(id)) warnings.push(`IfcSpace #${id} has no supported floor-area quantity or property.`);
     }
 
+    const propertyWidthsRaw = readNumericProperties(api, modelId, /^(overallwidth|clearwidth|width)$/);
+    const propertyWidths = new Map([...propertyWidthsRaw].map(([id, width]) => [id, width * lengthUnit.scale]));
     const doorsByExpressId = new Map<number, Door>();
+    let instanceDoorWidths = 0;
+    let propertyDoorWidths = 0;
     for (const id of doorIds) {
       const line = api.GetLine(modelId, id) as Record<string, unknown>;
-      const width = valueOf<number>(line.OverallWidth as IfcValue);
+      const instanceWidth = valueOf<number>(line.OverallWidth as IfcValue);
+      const width = instanceWidth !== undefined ? instanceWidth * lengthUnit.scale : propertyWidths.get(id);
+      if (instanceWidth !== undefined) instanceDoorWidths += 1;
+      else if (width !== undefined) propertyDoorWidths += 1;
       if (width === undefined) warnings.push(`IfcDoor #${id} has no OverallWidth value.`);
       doorsByExpressId.set(id, {
         id: stableId("door", line, id),
@@ -224,6 +289,9 @@ export async function parseIfcBytes(bytes: Uint8Array): Promise<IfcParseResult> 
         spacesFound: spaceIds.length,
         doorsFound: doorIds.length,
         boundariesFound,
+        lengthUnit: lengthUnit.label,
+        areaSources: { quantities: quantityAreas.size, properties: [...propertyAreas.keys()].filter((id) => !quantityAreas.has(id)).length },
+        doorWidthSources: { instances: instanceDoorWidths, properties: propertyDoorWidths },
         warnings
       }
     };
