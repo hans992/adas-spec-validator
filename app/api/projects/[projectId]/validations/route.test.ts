@@ -18,6 +18,7 @@ describe("POST /api/projects/:projectId/validations", () => {
   it("reruns validation on the server and persists an evidence snapshot", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(Response.json({ id: "user-1" }))
+      .mockResolvedValueOnce(Response.json([{ owner_id: "user-1" }]))
       .mockResolvedValueOnce(Response.json([{ id: "run-1", project_id: "project-1" }]));
     const request = new Request("http://localhost/api/projects/project-1/validations", {
       method: "POST",
@@ -31,10 +32,11 @@ describe("POST /api/projects/:projectId/validations", () => {
 
     const response = await POST(request, { params: Promise.resolve({ projectId: "project-1" }) });
     expect(response.status).toBe(201);
-    const persisted = JSON.parse(String((fetchMock.mock.calls[1][1] as RequestInit).body));
+    const persisted = JSON.parse(String((fetchMock.mock.calls[2][1] as RequestInit).body));
     expect(persisted).toMatchObject({
       project_id: "project-1",
       owner_id: "user-1",
+      created_by: "user-1",
       model_name: "terminal.ifc"
     });
     expect(persisted.results.length).toBeGreaterThan(0);

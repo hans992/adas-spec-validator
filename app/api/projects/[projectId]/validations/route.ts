@@ -31,9 +31,13 @@ export async function GET(request: Request, context: Context) {
 export async function POST(request: Request, context: Context) {
   try {
     const token = bearerToken(request);
-    const ownerId = await authenticatedUserId(token);
+    const actorId = await authenticatedUserId(token);
     const { projectId } = await context.params;
     const input = saveValidationSchema.parse(await request.json());
+    const projects = await supabaseRequest<Array<{ owner_id: string }>>(token,
+      `projects?id=eq.${encodeURIComponent(projectId)}&select=owner_id&limit=1`
+    );
+    if (!projects[0]) return Response.json({ error: "Project not found." }, { status: 404 });
     const { model, requirements, results } = validateWithDeterministicRules(input.model, input.requirements);
     const metrics = calculateComplianceMetrics(requirements, results);
 
@@ -42,7 +46,8 @@ export async function POST(request: Request, context: Context) {
       headers: { Prefer: "return=representation" },
       body: JSON.stringify({
         project_id: projectId,
-        owner_id: ownerId,
+        owner_id: projects[0].owner_id,
+        created_by: actorId,
         model_name: input.modelName,
         normalized_model: model,
         requirements,

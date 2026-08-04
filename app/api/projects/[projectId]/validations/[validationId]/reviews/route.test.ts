@@ -20,12 +20,12 @@ describe("validation review API", () => {
   it("verifies the requirement belongs to the run before upserting", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(Response.json({ id: "user-1" }))
-      .mockResolvedValueOnce(Response.json([{ requirements: [{ id: "req-1" }] }]))
+      .mockResolvedValueOnce(Response.json([{ owner_id: "owner-1", requirements: [{ id: "req-1" }] }]))
       .mockResolvedValueOnce(Response.json([{ requirement_id: "req-1", status: "acknowledged" }]));
     const response = await PUT(request({ requirementId: "req-1", status: "acknowledged", comment: "Accepted for review." }), context);
     expect(response.status).toBe(200);
     const persisted = JSON.parse(String((fetchMock.mock.calls[2][1] as RequestInit).body));
-    expect(persisted).toMatchObject({ validation_run_id: "run-1", project_id: "project-1", owner_id: "user-1", requirement_id: "req-1" });
+    expect(persisted).toMatchObject({ validation_run_id: "run-1", project_id: "project-1", owner_id: "owner-1", updated_by: "user-1", requirement_id: "req-1" });
     expect((fetchMock.mock.calls[2][1] as RequestInit).headers).toMatchObject({ Prefer: "resolution=merge-duplicates,return=representation" });
   });
 

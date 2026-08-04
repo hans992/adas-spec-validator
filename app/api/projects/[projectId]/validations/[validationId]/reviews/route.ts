@@ -20,11 +20,11 @@ export async function GET(request: Request, context: Context) {
 export async function PUT(request: Request, context: Context) {
   try {
     const token = bearerToken(request);
-    const ownerId = await authenticatedUserId(token);
+    const actorId = await authenticatedUserId(token);
     const { projectId, validationId } = await context.params;
     const input = reviewDecisionSchema.parse(await request.json());
-    const runs = await supabaseRequest<Array<{ requirements?: Array<{ id?: string }> }>>(token,
-      `validation_runs?id=eq.${encodeURIComponent(validationId)}&project_id=eq.${encodeURIComponent(projectId)}&select=requirements&limit=1`
+    const runs = await supabaseRequest<Array<{ owner_id: string; requirements?: Array<{ id?: string }> }>>(token,
+      `validation_runs?id=eq.${encodeURIComponent(validationId)}&project_id=eq.${encodeURIComponent(projectId)}&select=owner_id,requirements&limit=1`
     );
     if (runs.length === 0) return Response.json({ error: "Validation not found." }, { status: 404 });
     if (!runs[0].requirements?.some((requirement) => requirement.id === input.requirementId)) {
@@ -35,7 +35,8 @@ export async function PUT(request: Request, context: Context) {
         method: "POST",
         headers: { Prefer: "resolution=merge-duplicates,return=representation" },
         body: JSON.stringify({
-          validation_run_id: validationId, project_id: projectId, owner_id: ownerId,
+          validation_run_id: validationId, project_id: projectId, owner_id: runs[0].owner_id,
+          updated_by: actorId,
           requirement_id: input.requirementId, status: input.status, comment: input.comment,
           updated_at: new Date().toISOString()
         })

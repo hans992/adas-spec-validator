@@ -11,12 +11,16 @@ export const runtime = "nodejs";
 export async function GET(request: Request) {
   try {
     const token = bearerToken(request);
-    await authenticatedUserId(token);
-    const projects = await supabaseRequest<unknown[]>(
+    const userId = await authenticatedUserId(token);
+    const projects = await supabaseRequest<Array<{ id: string; owner_id: string } & Record<string, unknown>>>(
       token,
-      "projects?select=id,name,description,created_at,updated_at&order=updated_at.desc"
+      "projects?select=id,owner_id,name,description,created_at,updated_at&order=updated_at.desc"
     );
-    return Response.json({ projects });
+    const memberships = await supabaseRequest<Array<{ project_id: string; role: "viewer" | "editor" }>>(
+      token, `project_members?user_id=eq.${encodeURIComponent(userId)}&select=project_id,role`
+    );
+    const roles = new Map(memberships.map((membership) => [membership.project_id, membership.role]));
+    return Response.json({ projects: projects.map((project) => ({ ...project, access_role: project.owner_id === userId ? "owner" : roles.get(project.id) })) });
   } catch (error) {
     return persistenceResponse(error);
   }
