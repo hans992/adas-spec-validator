@@ -150,7 +150,7 @@ Provider priority is Gemini, then OpenAI, then deterministic fallback.
 
 Apply `supabase/migrations/202608030001_projects_and_validation_runs.sql` before using persistence. The project APIs accept a Supabase access token through `Authorization: Bearer <token>`. Validation snapshots are never accepted as client-authored results: the server validates the submitted model and requirements, reruns the deterministic engine, calculates metrics, and only then writes the snapshot. RLS and a composite foreign key enforce that a run belongs to both the authenticated owner and that owner's project.
 
-The browser workspace supports email/password registration, sign-in, password recovery, automatic access-token refresh, and comparison of two saved runs from the same project. Comparisons are calculated from the stored requirement snapshots and server-generated results, and classify resolved, regressed, changed, unchanged, added, and removed requirements. Add the application's production origin and local development origin to the Supabase Auth redirect URL allowlist so recovery links can return to the workspace. Whether a newly registered account receives an immediate session or must confirm its email follows the Supabase project's Auth settings.
+The browser workspace supports email/password registration, sign-in, password recovery, automatic access-token refresh, comparison of two saved runs from the same project, and an A4 print/PDF report for each saved run. The report contains project/run identity, pass rate, coverage, model inventory, requirement outcomes, affected elements, and stored evidence; it is rendered only after the ownership-protected snapshot endpoint returns the server-generated results. Comparisons are calculated from the stored requirement snapshots and server-generated results, and classify resolved, regressed, changed, unchanged, added, and removed requirements. Add the application's production origin and local development origin to the Supabase Auth redirect URL allowlist so recovery links can return to the workspace. Whether a newly registered account receives an immediate session or must confirm its email follows the Supabase project's Auth settings.
 
 ## Run locally
 
@@ -210,7 +210,7 @@ See [`csharp-extractor-prototype/README.md`](csharp-extractor-prototype/README.m
 - Room-type inference is heuristic and intentionally leaves uncertain classifications unknown.
 - Composite rules currently target one room type and support room-area and connected-door-width conditions only; arbitrary nesting, cross-room aggregation, and additional BIM element types are not yet supported.
 - Rate limiting is in-memory and therefore instance-local; production deployment should use a shared store.
-- Browser email/password registration, sign-in, recovery, token refresh, project creation, validation history, and save/open controls are implemented. OAuth/SSO and multi-factor authentication are not yet implemented.
+- Browser email/password registration, sign-in, recovery, token refresh, project creation, validation history, save/open controls, run comparison, and printable saved-run reports are implemented. OAuth/SSO and multi-factor authentication are not yet implemented.
 - Persisted snapshots currently store normalized facts, requirements, evidence, and metrics; raw IFC object storage and model-version diffs are not yet implemented.
 - External AI availability and output quality remain provider-dependent; invalid responses fall back to deterministic explanations.
 
