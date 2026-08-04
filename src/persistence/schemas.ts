@@ -13,5 +13,12 @@ export const saveValidationSchema = z.object({
   requirements: requirementsSchema
 }).strict();
 
+export const reviewDecisionSchema = z.object({
+  requirementId: z.string().trim().min(1).max(200),
+  status: z.enum(["open", "acknowledged", "resolved", "waived"]),
+  comment: z.string().trim().max(2000)
+}).strict();
+
 export type CreateProjectInput = z.infer<typeof createProjectSchema>;
 export type SaveValidationInput = z.infer<typeof saveValidationSchema>;
+export type ReviewDecisionInput = z.infer<typeof reviewDecisionSchema>;

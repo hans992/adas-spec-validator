@@ -1,13 +1,17 @@
 "use client";
 
+import { useState } from "react";
 import { Printer, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { calculateComplianceMetrics, type RequirementOutcome } from "@/domain/complianceMetrics";
 import type { ValidationSnapshot } from "@/domain/validationComparison";
+export type ValidationReview = { requirement_id: string; status: "open" | "acknowledged" | "resolved" | "waived"; comment: string; updated_at: string };
 
 const outcomeLabel: Record<RequirementOutcome, string> = { compliant: "Compliant", violation: "Violation", unknown: "Needs review", not_applicable: "Not applicable" };
 
-export function ValidationReport({ projectName, snapshot, onClose }: { projectName: string; snapshot: ValidationSnapshot; onClose: () => void }) {
+type ReviewDecision = { requirementId: string; status: ValidationReview["status"]; comment: string };
+
+export function ValidationReport({ projectName, snapshot, reviews, onSaveReview, onClose }: { projectName: string; snapshot: ValidationSnapshot; reviews: ValidationReview[]; onSaveReview: (decision: ReviewDecision) => Promise<void>; onClose: () => void }) {
   const metrics = calculateComplianceMetrics(snapshot.requirements, snapshot.results);
   return <div className="report-shell fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 p-4 backdrop-blur-sm print:static print:bg-white print:p-0">
     <article className="validation-report mx-auto max-w-5xl bg-white p-8 text-slate-950 shadow-2xl print:max-w-none print:p-0 print:shadow-none">
@@ -23,10 +27,35 @@ export function ValidationReport({ projectName, snapshot, onClose }: { projectNa
           <div className="flex items-start justify-between gap-4"><div><p className="text-xs text-slate-500">{index + 1}. {assessment.requirement.id}</p><h3 className="font-semibold">{assessment.requirement.title}</h3></div><span className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-bold ${assessment.outcome === "compliant" ? "bg-emerald-100 text-emerald-800" : assessment.outcome === "violation" ? "bg-rose-100 text-rose-800" : "bg-amber-100 text-amber-800"}`}>{outcomeLabel[assessment.outcome]}</span></div>
           <p className="mt-2 text-xs"><b>Severity:</b> {assessment.requirement.severity}</p>
           {assessment.results.length === 0 ? <p className="mt-3 text-sm text-slate-600">No deterministic result was produced for this requirement.</p> : assessment.results.map((result, resultIndex) => <div key={`${result.ruleId}-${resultIndex}`} className="mt-3 border-t border-slate-200 pt-3 text-sm"><p className="font-medium">{result.summary}</p>{result.affectedElementIds.length > 0 && <p className="mt-1 text-xs text-slate-600"><b>Affected:</b> {result.affectedElementIds.join(", ")}</p>}{result.evidence.map((item, evidenceIndex) => <p key={evidenceIndex} className="mt-1 text-xs text-slate-600">Evidence: {item.message}{item.observed !== undefined ? ` · observed ${String(item.observed)}` : ""}{item.expected !== undefined ? ` · expected ${String(item.expected)}` : ""}</p>)}</div>)}
+          <ReviewEditor requirementId={assessment.requirement.id} review={reviews.find((item) => item.requirement_id === assessment.requirement.id)} onSave={onSaveReview} />
         </section>)}</div>
       </section>
       <footer className="mt-8 border-t border-slate-300 pt-4 text-xs text-slate-500">Deterministic validation report generated from saved run {snapshot.id}. Unknown or incomplete source data requires human review.</footer>
     </article>
+  </div>;
+}
+
+function ReviewEditor({ requirementId, review, onSave }: { requirementId: string; review?: ValidationReview; onSave: (decision: ReviewDecision) => Promise<void> }) {
+  const [status, setStatus] = useState<ValidationReview["status"]>(review?.status ?? "open");
+  const [comment, setComment] = useState(review?.comment ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  async function save() {
+    setSaving(true); setError("");
+    try { await onSave({ requirementId, status, comment }); }
+    catch (caught) { setError(caught instanceof Error ? caught.message : "Review could not be saved."); }
+    finally { setSaving(false); }
+  }
+  return <div className="mt-4 border-t border-slate-200 pt-3">
+    <div className="flex items-center justify-between"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Review decision</p><span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold capitalize">{review?.status ?? status}</span></div>
+    {review?.comment && <p className="mt-2 text-sm text-slate-700">{review.comment}</p>}
+    {review?.updated_at && <p className="mt-1 text-[10px] text-slate-500">Updated {new Date(review.updated_at).toLocaleString()}</p>}
+    <div className="report-controls mt-3 grid gap-2 sm:grid-cols-[160px_1fr_auto]">
+      <select aria-label={`Review status for ${requirementId}`} value={status} onChange={(event) => setStatus(event.target.value as ValidationReview["status"])} className="h-9 rounded-md border border-slate-300 bg-white px-2 text-xs"><option value="open">Open</option><option value="acknowledged">Acknowledged</option><option value="resolved">Resolved</option><option value="waived">Waived</option></select>
+      <input aria-label={`Review comment for ${requirementId}`} value={comment} onChange={(event) => setComment(event.target.value)} maxLength={2000} placeholder="Decision rationale or follow-up note" className="h-9 rounded-md border border-slate-300 px-3 text-xs" />
+      <Button size="sm" disabled={saving} onClick={() => void save()}>{saving ? "Saving…" : "Save review"}</Button>
+    </div>
+    {error && <p className="mt-2 text-xs text-rose-700">{error}</p>}
   </div>;
 }
 
