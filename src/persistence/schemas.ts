@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { normalizedModelSchema, requirementsSchema } from "@/domain/schemas";
+import { normalizedModelSchema, requirementsSchema, specificationPackageSchema } from "@/domain/schemas";
 
 export const createProjectSchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -12,6 +12,8 @@ export const saveValidationSchema = z.object({
   model: normalizedModelSchema,
   requirements: requirementsSchema
 }).strict();
+
+export const saveSpecificationPackageSchema = specificationPackageSchema;
 
 export const reviewDecisionSchema = z.object({
   requirementId: z.string().trim().min(1).max(200),
@@ -31,5 +33,6 @@ export const projectMemberRoleSchema = z.object({
 
 export type CreateProjectInput = z.infer<typeof createProjectSchema>;
 export type SaveValidationInput = z.infer<typeof saveValidationSchema>;
+export type SaveSpecificationPackageInput = z.infer<typeof saveSpecificationPackageSchema>;
 export type ReviewDecisionInput = z.infer<typeof reviewDecisionSchema>;
 export type ProjectInvitationInput = z.infer<typeof projectInvitationSchema>;

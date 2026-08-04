@@ -22,6 +22,7 @@ This is not a generic BIM chatbot and the LLM is never the source of truth. Rule
 - Version-to-version validation comparison with requirement and model deltas
 - Per-requirement review decisions and audit notes on saved validation runs
 - Stable requirement IDs and document/section/revision traceability in findings and reports
+- Project specification library with immutable, reusable requirement revisions
 
 ## Architecture
 
@@ -112,6 +113,8 @@ Duplicate requirement IDs are rejected before validation. Source references rema
 
 The workspace also accepts CSV specifications with one requirement per row. Required columns are `id`, `title`, `type`, and `severity`. Optional package columns are `specification_name` and `specification_revision`; traceability uses `source_document`, `source_section`, and `source_revision`. Rule-specific values use snake-case columns such as `room_type`, `min_area_sqm`, `max_area_sqm`, `min_door_width_m`, `max_door_width_m`, and `quantifier`. Composite rule conditions can be supplied as JSON in `conditions_json`. Package metadata must be consistent across rows, and the imported result passes the same schema and duplicate-ID validation as JSON uploads.
 
+Authenticated project participants can load saved specification revisions from the project library. Owners and editors can save the active package under a name and revision; viewers have read-only access. A `(project, name, revision)` identity is immutable and cannot be silently overwritten, while the server validates the complete package before persistence. This keeps reusable authoring inputs separate from the immutable requirement snapshot stored with every validation run.
+
 Every requirement produces structured outcomes. Missing facts remain `unknown`; non-applicable requirements remain `not_applicable`; neither is silently converted into a pass or failure.
 
 Compliance is deliberately split into separate metrics:
@@ -180,7 +183,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
 
 Provider priority is Gemini, then OpenAI, then deterministic fallback.
 
-Apply `supabase/migrations/202608030001_projects_and_validation_runs.sql`, `202608040001_validation_reviews.sql`, and `202608040002_project_collaboration.sql` in order before using persistence. The project APIs accept a Supabase access token through `Authorization: Bearer <token>`. Validation snapshots are never accepted as client-authored results: the server validates the submitted model and requirements, reruns the deterministic engine, calculates metrics, and only then writes the snapshot. RLS and composite foreign keys enforce project access; `created_by` and `updated_by` preserve the acting user without changing the project owner identity.
+Apply all files in `supabase/migrations` in filename order before using persistence, including `202608040003_specification_library.sql`. The project APIs accept a Supabase access token through `Authorization: Bearer <token>`. Validation snapshots are never accepted as client-authored results: the server validates the submitted model and requirements, reruns the deterministic engine, calculates metrics, and only then writes the snapshot. RLS and composite foreign keys enforce project access; `created_by` and `updated_by` preserve the acting user without changing the project owner identity.
 
 The browser workspace supports email/password registration, sign-in, password recovery, automatic access-token refresh, comparison of two saved runs from the same project, and an A4 print/PDF report for each saved run. The report contains project/run identity, pass rate, coverage, model inventory, requirement outcomes, affected elements, stored evidence, and persisted review decisions (`open`, `acknowledged`, `resolved`, or `waived`) with audit notes. It is rendered only after the ownership-protected snapshot endpoint returns the server-generated results. Comparisons are calculated from the stored requirement snapshots and server-generated results, and classify resolved, regressed, changed, unchanged, added, and removed requirements. Add the application's production origin and local development origin to the Supabase Auth redirect URL allowlist so recovery links can return to the workspace. Whether a newly registered account receives an immediate session or must confirm its email follows the Supabase project's Auth settings.
 
@@ -242,7 +245,7 @@ See [`csharp-extractor-prototype/README.md`](csharp-extractor-prototype/README.m
 - Room-type inference is heuristic and intentionally leaves uncertain classifications unknown.
 - Composite rules currently target one room type and support room-area and connected-door-width conditions only; arbitrary nesting, cross-room aggregation, and additional BIM element types are not yet supported.
 - Rate limiting is in-memory and therefore instance-local; production deployment should use a shared store.
-- Browser email/password registration, sign-in, recovery, token refresh, project creation, validation history, save/open controls, run comparison, printable reports, finding reviews, and viewer/editor team invitations are implemented. OAuth/SSO and multi-factor authentication are not yet implemented.
+- Browser email/password registration, sign-in, recovery, token refresh, project creation, validation history, save/open controls, reusable specification revisions, run comparison, printable reports, finding reviews, and viewer/editor team invitations are implemented. OAuth/SSO and multi-factor authentication are not yet implemented.
 - Persisted snapshots currently store normalized facts, requirements, evidence, and metrics; raw IFC object storage and model-version diffs are not yet implemented.
 - External AI availability and output quality remain provider-dependent; invalid responses fall back to deterministic explanations.
 

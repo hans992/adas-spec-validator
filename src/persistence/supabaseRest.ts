@@ -47,7 +47,11 @@ export async function supabaseRequest<T>(token: string, path: string, init: Requ
   });
   if (!response.ok) {
     throw new PersistenceError(
-      response.status === 403 ? "You do not have access to this resource." : "The persistence request failed.",
+      response.status === 403
+        ? "You do not have access to this resource."
+        : response.status === 409
+          ? "A record with this identity already exists. Use a new revision."
+          : "The persistence request failed.",
       response.status
     );
   }
