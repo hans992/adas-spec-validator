@@ -179,10 +179,9 @@ Run a production build:
 npm run build
 ```
 
-The browser E2E suite expects `@playwright/test` and Chromium. CI installs the pinned Playwright version without adding it to the production dependency tree:
+The browser E2E suite expects the pinned `@playwright/test` development dependency and Chromium:
 
 ```bash
-npm install --no-save --package-lock=false @playwright/test@1.62.1
 npx playwright install chromium
 npm run build
 npm run test:e2e
