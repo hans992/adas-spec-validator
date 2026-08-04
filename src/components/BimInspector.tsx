@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Edit2, Layout, Sliders, Trash2, Plus, DoorOpen } from "lucide-react";
-import type { NormalizedModel, ValidationResult, RoomType, Room, Door } from "@/domain/types";
+import type { NormalizedModel, Requirement, ValidationResult, RoomType, Room, Door } from "@/domain/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
@@ -13,6 +13,7 @@ const focusRing =
 interface BimInspectorProps {
   model: NormalizedModel;
   validationResults: ValidationResult[];
+  requirements: Requirement[];
   selectedId: string | null;
   selectedType: "room" | "door" | null;
   onUpdateModel: (newModel: NormalizedModel) => void;
@@ -22,6 +23,7 @@ interface BimInspectorProps {
 export function BimInspector({
   model,
   validationResults,
+  requirements,
   selectedId,
   selectedType,
   onUpdateModel,
@@ -525,15 +527,17 @@ export function BimInspector({
                   Active Violations ({entityIssues.length})
                 </p>
                 <div className="space-y-2">
-                  {entityIssues.map((issue, idx) => (
-                    <div
-                      key={idx}
-                      className="text-xs border border-rose-100 bg-rose-50/30 p-2 rounded-md dark:border-rose-950 dark:bg-rose-950/10 text-rose-800 dark:text-rose-400"
-                    >
-                      <p className="font-semibold">{issue.requirementTitle}</p>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{issue.summary}</p>
-                    </div>
-                  ))}
+                  {entityIssues.map((issue, idx) => {
+                    const source = requirements.find((requirement) => requirement.id === issue.requirementId)?.source;
+                    return <div
+                        key={idx}
+                        className="text-xs border border-rose-100 bg-rose-50/30 p-2 rounded-md dark:border-rose-950 dark:bg-rose-950/10 text-rose-800 dark:text-rose-400"
+                      >
+                        <p className="font-semibold">{issue.requirementTitle}</p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{issue.summary}</p>
+                        {source && <p className="mt-1 text-[10px] font-medium text-indigo-600 dark:text-indigo-400">Source: {source.document} · {source.section}</p>}
+                      </div>;
+                  })}
                 </div>
               </div>
             )}

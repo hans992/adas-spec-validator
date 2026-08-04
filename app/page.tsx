@@ -27,13 +27,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { sampleModelData, sampleRequirements } from "@/domain/sampleData";
 import {
   parseUploadedJson,
+  parseUploadedSpecificationCsv,
   validateUploadedModel,
-  validateUploadedRequirements
+  validateUploadedSpecification
 } from "@/domain/uploadHelpers";
+import type { UploadParseResult } from "@/domain/uploadHelpers";
 import { validateWithDeterministicRules } from "@/domain/validationPipeline";
 import { calculateComplianceMetrics } from "@/domain/complianceMetrics";
 import type { IfcParseDiagnostics } from "@/domain/ifcParser";
-import type { NormalizedModel, Requirement } from "@/domain/types";
+import type { NormalizedModel, Requirement, SpecificationPackage } from "@/domain/types";
 
 type DataSourceStatus = "sample" | "uploaded";
 
@@ -47,6 +49,8 @@ export default function Home() {
   const [requirementsError, setRequirementsError] = useState("");
   const [modelFilename, setModelFilename] = useState("");
   const [requirementsFilename, setRequirementsFilename] = useState("");
+  const [specificationName, setSpecificationName] = useState("Sample architectural requirements");
+  const [specificationRevision, setSpecificationRevision] = useState("Demo");
   const [isParsingIfc, setIsParsingIfc] = useState(false);
   const [ifcDiagnostics, setIfcDiagnostics] = useState<IfcParseDiagnostics | null>(null);
 
@@ -167,21 +171,27 @@ export default function Home() {
 
   const handleRequirementsFile = useCallback(async (file: File) => {
     const rawText = await file.text();
-    const parseResult = parseUploadedJson(rawText);
-    if (!parseResult.success) {
-      setRequirementsError(parseResult.error);
-      return;
+    let validationResult: UploadParseResult<SpecificationPackage>;
+    if (file.name.toLowerCase().endsWith(".csv")) {
+      validationResult = parseUploadedSpecificationCsv(rawText);
+    } else {
+      const parseResult = parseUploadedJson(rawText);
+      if (!parseResult.success) {
+        setRequirementsError(parseResult.error);
+        return;
+      }
+      validationResult = validateUploadedSpecification(parseResult.data);
     }
-
-    const validationResult = validateUploadedRequirements(parseResult.data);
     if (!validationResult.success) {
       setRequirementsError(validationResult.error);
       return;
     }
 
-    setRequirementsData(validationResult.data);
+    setRequirementsData(validationResult.data.requirements);
     setRequirementsSource("uploaded");
     setRequirementsFilename(file.name);
+    setSpecificationName(validationResult.data.name);
+    setSpecificationRevision(validationResult.data.revision);
     setRequirementsError("");
   }, []);
 
@@ -203,7 +213,7 @@ export default function Home() {
   });
 
   const requirementsDropzone = useDropzone({
-    accept: { "application/json": [".json"] },
+    accept: { "application/json": [".json"], "text/csv": [".csv"] },
     maxFiles: 1,
     multiple: false,
     onDrop: (acceptedFiles) => {
@@ -223,6 +233,8 @@ export default function Home() {
     setRequirementsError("");
     setModelFilename("");
     setRequirementsFilename("");
+    setSpecificationName("Sample architectural requirements");
+    setSpecificationRevision("Demo");
     setIfcDiagnostics(null);
     handleDeselect();
   }
@@ -238,6 +250,8 @@ export default function Home() {
     setRequirementsSource("uploaded");
     setModelFilename(snapshot.model_name);
     setRequirementsFilename("Saved requirement snapshot");
+    setSpecificationName("Saved requirement snapshot");
+    setSpecificationRevision("Stored with validation run");
     setIfcDiagnostics(null);
     setModelError("");
     setRequirementsError("");
@@ -258,11 +272,14 @@ Not Applicable Requirements: ${metrics.notApplicableRequirements}
 - Total Access Doors Inspected: ${model.doors.length}
 - Spatial Storeys (Levels): ${model.levels.length}
 - Total Evaluated Rule Specifications: ${requirements.length}
+- Specification: ${specificationName}
+- Specification Revision: ${specificationRevision}
 
 ## Spec Compliance Breakdown
 ${metrics.assessments
   .map((assessment, idx) => {
-    return `${idx + 1}. [${assessment.outcome.toUpperCase().replace("_", " ")}] **${assessment.requirement.title}** (Severity: ${assessment.requirement.severity})`;
+    const source = assessment.requirement.source;
+    return `${idx + 1}. [${assessment.outcome.toUpperCase().replace("_", " ")}] **${assessment.requirement.title}** (Severity: ${assessment.requirement.severity})${source ? ` — Source: ${source.document}, ${source.section}${source.revision ? `, rev. ${source.revision}` : ""}` : ""}`;
   })
   .join("\n")}
 
@@ -328,6 +345,7 @@ ${res.evidence
                 Deterministic compliance engine mapping Revit / AutoCAD models against strict architectural requirements.
               </p>
               <p className="text-xs text-slate-400 dark:text-slate-500 font-mono">{dataSourceLabel}</p>
+              <p className="text-[11px] text-slate-400">Specification: {specificationName} · revision {specificationRevision}</p>
             </div>
             
             <div className="flex items-center gap-2.5 self-start md:self-auto">
@@ -540,8 +558,8 @@ ${res.evidence
                     <div className="flex items-start gap-3">
                       <FileJson className="mt-0.5 h-4 w-4 text-slate-500 flex-shrink-0" />
                       <div className="space-y-1">
-                        <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">Upload Rule JSON</p>
-                        <p className="text-[10px] text-slate-500">Inject raw JSON file outlining validation rule arrays.</p>
+                        <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">Upload Specification</p>
+                        <p className="text-[10px] text-slate-500">Import a traceable JSON package or one-requirement-per-row CSV.</p>
                       </div>
                     </div>
                     {requirementsFilename && (
@@ -701,6 +719,7 @@ ${res.evidence
                 <BimInspector
                   model={model}
                   validationResults={results}
+                  requirements={requirements}
                   selectedId={selectedId}
                   selectedType={selectedType}
                   onUpdateModel={handleUpdateModel}
