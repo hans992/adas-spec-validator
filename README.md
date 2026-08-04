@@ -19,6 +19,7 @@ This is not a generic BIM chatbot and the LLM is never the source of truth. Rule
 - IFC diagnostics for units, extraction sources, containment, connectivity, and unsupported or missing data
 - Unit/API tests plus a Chromium E2E test covering IFC upload through report export
 - Authenticated project and validation-history API backed by Supabase Row Level Security
+- Version-to-version validation comparison with requirement and model deltas
 
 ## Architecture
 
@@ -149,7 +150,7 @@ Provider priority is Gemini, then OpenAI, then deterministic fallback.
 
 Apply `supabase/migrations/202608030001_projects_and_validation_runs.sql` before using persistence. The project APIs accept a Supabase access token through `Authorization: Bearer <token>`. Validation snapshots are never accepted as client-authored results: the server validates the submitted model and requirements, reruns the deterministic engine, calculates metrics, and only then writes the snapshot. RLS and a composite foreign key enforce that a run belongs to both the authenticated owner and that owner's project.
 
-The browser workspace supports email/password registration, sign-in, password recovery, and automatic access-token refresh. Add the application's production origin and local development origin to the Supabase Auth redirect URL allowlist so recovery links can return to the workspace. Whether a newly registered account receives an immediate session or must confirm its email follows the Supabase project's Auth settings.
+The browser workspace supports email/password registration, sign-in, password recovery, automatic access-token refresh, and comparison of two saved runs from the same project. Comparisons are calculated from the stored requirement snapshots and server-generated results, and classify resolved, regressed, changed, unchanged, added, and removed requirements. Add the application's production origin and local development origin to the Supabase Auth redirect URL allowlist so recovery links can return to the workspace. Whether a newly registered account receives an immediate session or must confirm its email follows the Supabase project's Auth settings.
 
 ## Run locally
 
