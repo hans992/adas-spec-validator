@@ -258,6 +258,15 @@ export default function Home() {
     handleDeselect();
   }
 
+  function openSavedSpecification(specification: SpecificationPackage) {
+    setRequirementsData(specification.requirements);
+    setRequirementsSource("uploaded");
+    setRequirementsFilename("Project specification library");
+    setSpecificationName(specification.name);
+    setSpecificationRevision(specification.revision);
+    setRequirementsError("");
+  }
+
   // Export Compliance Report Downloader
   function exportComplianceReport() {
     const reportMd = `# ADAS Spec Validator - Building Compliance Report
@@ -375,6 +384,9 @@ ${res.evidence
           model={model}
           requirements={requirements}
           modelName={modelFilename || "workspace-model.json"}
+          specificationName={specificationName}
+          specificationRevision={specificationRevision}
+          onOpenSpecification={openSavedSpecification}
           onOpen={openSavedValidation}
         />
 

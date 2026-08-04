@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { FileText, FolderOpen, GitCompareArrows, KeyRound, LogIn, LogOut, Save, UserPlus, Users } from "lucide-react";
+import { BookOpen, FileText, FolderOpen, GitCompareArrows, KeyRound, LogIn, LogOut, Save, UserPlus, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ValidationReport, type ValidationReview } from "@/components/ValidationReport";
-import type { NormalizedModel, Requirement } from "@/domain/types";
+import type { NormalizedModel, Requirement, SpecificationPackage } from "@/domain/types";
 import { compareValidationSnapshots, type ValidationComparison, type ValidationSnapshot } from "@/domain/validationComparison";
 import {
   clearBrowserSession,
@@ -25,12 +25,16 @@ type ValidationSummary = { id: string; model_name: string; created_at: string; m
 type Invitation = { id: string; project_id: string; email: string; role: "viewer" | "editor"; projects?: { name?: string } };
 type Member = { user_id: string; role: "viewer" | "editor"; created_at: string };
 type Snapshot = { model_name: string; normalized_model: NormalizedModel; requirements: Requirement[] };
+type StoredSpecification = SpecificationPackage & { id: string; created_by: string; created_at: string };
 
-export function ProjectWorkspace({ model, requirements, modelName, onOpen }: {
+export function ProjectWorkspace({ model, requirements, modelName, onOpen, specificationName, specificationRevision, onOpenSpecification }: {
   model: NormalizedModel;
   requirements: Requirement[];
   modelName: string;
   onOpen: (snapshot: Snapshot) => void;
+  specificationName: string;
+  specificationRevision: string;
+  onOpenSpecification: (specification: SpecificationPackage) => void;
 }) {
   const [session, setSession] = useState<BrowserSession | null>(null);
   const [email, setEmail] = useState("");
@@ -51,6 +55,10 @@ export function ProjectWorkspace({ model, requirements, modelName, onOpen }: {
   const [sentInvitations, setSentInvitations] = useState<Invitation[]>([]);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"viewer" | "editor">("viewer");
+  const [specifications, setSpecifications] = useState<StoredSpecification[]>([]);
+  const [selectedSpecificationId, setSelectedSpecificationId] = useState("");
+  const [specificationDraftName, setSpecificationDraftName] = useState(specificationName);
+  const [specificationDraftRevision, setSpecificationDraftRevision] = useState(specificationRevision);
 
   useEffect(() => {
     const recovery = captureRecoverySession();
@@ -103,10 +111,19 @@ export function ProjectWorkspace({ model, requirements, modelName, onOpen }: {
     setValidations(payload.validations);
   }, [api]);
 
+  const loadSpecifications = useCallback(async (selectedProjectId: string) => {
+    if (!selectedProjectId) { setSpecifications([]); setSelectedSpecificationId(""); return; }
+    const payload = await api(`/api/projects/${selectedProjectId}/specifications`);
+    setSpecifications(payload.specifications);
+    setSelectedSpecificationId((current) => payload.specifications.some((item: StoredSpecification) => item.id === current) ? current : payload.specifications[0]?.id ?? "");
+  }, [api]);
+
   useEffect(() => { void loadProjects().catch((error: Error) => setMessage(error.message)); }, [loadProjects]);
   useEffect(() => { void loadInvitations().catch((error: Error) => setMessage(error.message)); }, [loadInvitations]);
   useEffect(() => { void loadValidations(projectId).catch((error: Error) => setMessage(error.message)); }, [loadValidations, projectId]);
+  useEffect(() => { void loadSpecifications(projectId).catch((error: Error) => setMessage(error.message)); }, [loadSpecifications, projectId]);
   useEffect(() => { void loadMembers(projectId).catch((error: Error) => setMessage(error.message)); }, [loadMembers, projectId]);
+  useEffect(() => { setSpecificationDraftName(specificationName); setSpecificationDraftRevision(specificationRevision); }, [specificationName, specificationRevision]);
 
   async function run(action: () => Promise<void>) {
     setBusy(true); setMessage("");
@@ -145,6 +162,21 @@ export function ProjectWorkspace({ model, requirements, modelName, onOpen }: {
           <input aria-label="New project name" value={newProjectName} onChange={(event) => setNewProjectName(event.target.value)} placeholder="New project name" className="h-9 rounded-md border bg-transparent px-3 text-xs" />
           <Button variant="outline" size="sm" disabled={busy || !newProjectName.trim()} onClick={() => void run(async () => { const payload = await api("/api/projects", { method: "POST", body: JSON.stringify({ name: newProjectName }) }); setNewProjectName(""); await loadProjects(); setProjectId(payload.project.id); })}>Create project</Button>
         </div>
+        {projectId && <div className="space-y-2 rounded-lg border p-3 text-left">
+          <div>
+            <p className="flex items-center gap-1.5 text-xs font-semibold"><BookOpen className="h-3.5 w-3.5" /> Specification library</p><p className="text-[10px] text-slate-500">Save the active {requirements.length}-rule package under an immutable project revision.</p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-[1fr_0.6fr_auto]">
+            <input aria-label="Specification name" value={specificationDraftName} onChange={(event) => setSpecificationDraftName(event.target.value)} placeholder="Specification name" className="h-9 rounded-md border bg-transparent px-3 text-xs" />
+            <input aria-label="Specification revision" value={specificationDraftRevision} onChange={(event) => setSpecificationDraftRevision(event.target.value)} placeholder="Revision" className="h-9 rounded-md border bg-transparent px-3 text-xs" />
+            <Button variant="outline" size="sm" disabled={busy || !specificationDraftName.trim() || !specificationDraftRevision.trim() || projects.find((project) => project.id === projectId)?.access_role === "viewer"} onClick={() => void run(async () => { await api(`/api/projects/${projectId}/specifications`, { method: "POST", body: JSON.stringify({ name: specificationDraftName, revision: specificationDraftRevision, requirements }) }); await loadSpecifications(projectId); setMessage("Specification revision saved."); })}><Save className="mr-1.5 h-3.5 w-3.5" /> Save revision</Button>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+            <select aria-label="Saved specification revision" value={selectedSpecificationId} onChange={(event) => setSelectedSpecificationId(event.target.value)} className="h-9 rounded-md border bg-transparent px-3 text-xs"><option value="">No saved specifications</option>{specifications.map((specification) => <option key={specification.id} value={specification.id}>{specification.name} · {specification.revision} · {specification.requirements.length} rules</option>)}</select>
+            <Button variant="outline" size="sm" disabled={busy || !selectedSpecificationId} onClick={() => { const selected = specifications.find((item) => item.id === selectedSpecificationId); if (selected) { onOpenSpecification(selected); setMessage("Specification revision loaded."); } }}><FolderOpen className="mr-1.5 h-3.5 w-3.5" /> Load</Button>
+          </div>
+          {specifications.length > 0 && <p className="text-[10px] text-slate-500">{specifications.length} saved revision{specifications.length === 1 ? "" : "s"}. Saving an existing name and revision is rejected to preserve audit history.</p>}
+        </div>}
         <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
           <select aria-label="Active project" value={projectId} onChange={(event) => setProjectId(event.target.value)} className="h-9 rounded-md border bg-transparent px-3 text-xs"><option value="">Select a project</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select>
           <Button size="sm" disabled={busy || !projectId || projects.find((project) => project.id === projectId)?.access_role === "viewer"} onClick={() => void run(async () => { await api(`/api/projects/${projectId}/validations`, { method: "POST", body: JSON.stringify({ modelName: modelName || "workspace-model.json", model, requirements }) }); await loadValidations(projectId); setMessage("Validation saved."); })}><Save className="mr-1.5 h-3.5 w-3.5" /> Save validation</Button>
