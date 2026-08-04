@@ -2,6 +2,35 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer components {
+  .tech-label { @apply font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--adas-muted)]; }
+  .adas-button-primary { @apply inline-flex min-h-11 items-center gap-2 border border-[var(--adas-blue)] bg-[var(--adas-blue)] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-[var(--adas-blue-dark)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--adas-blue)]; }
+  .adas-button-secondary { @apply inline-flex min-h-11 items-center gap-2 border border-[var(--adas-line-strong)] bg-white px-5 py-2.5 text-sm font-medium text-[var(--adas-ink)] transition hover:border-[var(--adas-blue)] hover:text-[var(--adas-blue)]; }
+}
+
+.marketing {
+  --adas-paper: #f5f2ea;
+  --adas-canvas: #ebe8df;
+  --adas-card: #fffefa;
+  --adas-ink: #2d3037;
+  --adas-muted: #6a6d72;
+  --adas-faint: #a2a099;
+  --adas-line: #d9d5cb;
+  --adas-line-strong: #b8b3a8;
+  --adas-blue: #315f86;
+  --adas-blue-dark: #254a69;
+  --adas-copper: #a45e35;
+  --adas-copper-soft: #f3e6dc;
+  --adas-shadow: 0 24px 60px -38px rgba(31, 40, 51, .46);
+  font-family: var(--font-plex), ui-sans-serif, system-ui, sans-serif;
+}
+
+.blueprint-grid {
+  background-color: var(--adas-paper);
+  background-image: linear-gradient(rgba(49,95,134,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(49,95,134,.07) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
 :root {
   color-scheme: light;
 }

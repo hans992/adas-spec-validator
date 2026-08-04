@@ -2,7 +2,7 @@ const { expect, test } = require("@playwright/test");
 const path = require("node:path");
 
 test("uploads IFC, validates it, scores it and exports evidence", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/workspace");
 
   await page.getByLabel("Upload BIM model").setInputFiles(
     path.join(process.cwd(), "test/fixtures/minimal-building.ifc")
