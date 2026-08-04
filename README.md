@@ -149,6 +149,8 @@ Provider priority is Gemini, then OpenAI, then deterministic fallback.
 
 Apply `supabase/migrations/202608030001_projects_and_validation_runs.sql` before using persistence. The project APIs accept a Supabase access token through `Authorization: Bearer <token>`. Validation snapshots are never accepted as client-authored results: the server validates the submitted model and requirements, reruns the deterministic engine, calculates metrics, and only then writes the snapshot. RLS and a composite foreign key enforce that a run belongs to both the authenticated owner and that owner's project.
 
+The browser workspace supports email/password registration, sign-in, password recovery, and automatic access-token refresh. Add the application's production origin and local development origin to the Supabase Auth redirect URL allowlist so recovery links can return to the workspace. Whether a newly registered account receives an immediate session or must confirm its email follows the Supabase project's Auth settings.
+
 ## Run locally
 
 Requirements:
@@ -208,7 +210,7 @@ See [`csharp-extractor-prototype/README.md`](csharp-extractor-prototype/README.m
 - Room-type inference is heuristic and intentionally leaves uncertain classifications unknown.
 - Composite rules currently target one room type and support room-area and connected-door-width conditions only; arbitrary nesting, cross-room aggregation, and additional BIM element types are not yet supported.
 - Rate limiting is in-memory and therefore instance-local; production deployment should use a shared store.
-- Browser email/password sign-in, project creation, validation history, and save/open controls are implemented. Accounts must currently be provisioned in Supabase; self-service registration, password recovery, and session refresh are not yet implemented.
+- Browser email/password registration, sign-in, recovery, token refresh, project creation, validation history, and save/open controls are implemented. OAuth/SSO and multi-factor authentication are not yet implemented.
 - Persisted snapshots currently store normalized facts, requirements, evidence, and metrics; raw IFC object storage and model-version diffs are not yet implemented.
 - External AI availability and output quality remain provider-dependent; invalid responses fall back to deterministic explanations.
 
