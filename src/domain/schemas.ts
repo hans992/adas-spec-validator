@@ -2,6 +2,11 @@ import { z } from "zod";
 
 const validationSeveritySchema = z.enum(["info", "warning", "critical"]);
 const roomTypeSchema = z.enum(["stockroom", "office", "meeting_room", "corridor", "unknown"]);
+const requirementSourceSchema = z.object({
+  document: z.string().trim().min(1).max(200),
+  section: z.string().trim().min(1).max(200),
+  revision: z.string().trim().min(1).max(100).optional()
+}).strict();
 
 const levelSchema = z.object({
   id: z.string().min(1),
@@ -87,6 +92,7 @@ const minimumRoomAreaRequirementSchema = z.object({
   title: z.string().min(1),
   type: z.literal("minimum_room_area"),
   severity: validationSeveritySchema,
+  source: requirementSourceSchema.optional(),
   roomType: roomTypeSchema,
   minAreaSqm: z.number().positive(),
   maxAreaSqm: z.number().positive().optional()
@@ -97,6 +103,7 @@ const minimumDoorWidthRequirementSchema = z.object({
   title: z.string().min(1),
   type: z.literal("minimum_door_width_for_room_type"),
   severity: validationSeveritySchema,
+  source: requirementSourceSchema.optional(),
   roomType: roomTypeSchema,
   minDoorWidthM: z.number().positive(),
   maxDoorWidthM: z.number().positive().optional(),
@@ -107,7 +114,8 @@ const roomHasConnectedDoorRequirementSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
   type: z.literal("room_has_connected_door"),
-  severity: validationSeveritySchema
+  severity: validationSeveritySchema,
+  source: requirementSourceSchema.optional()
 });
 
 const roomAreaConditionSchema = z.object({
@@ -128,6 +136,7 @@ const compositeRoomRuleSchema = z.object({
   title: z.string().min(1),
   type: z.literal("composite_room_rule"),
   severity: validationSeveritySchema,
+  source: requirementSourceSchema.optional(),
   roomType: roomTypeSchema,
   operator: z.enum(["and", "or"]),
   conditions: z
@@ -183,4 +192,18 @@ export const requirementSchema = z.discriminatedUnion("type", [
   }
 });
 
-export const requirementsSchema = z.array(requirementSchema).min(1);
+export const requirementsSchema = z.array(requirementSchema).min(1).max(100).superRefine((requirements, context) => {
+  const seen = new Set<string>();
+  requirements.forEach((requirement, index) => {
+    if (seen.has(requirement.id)) {
+      context.addIssue({ code: "custom", path: [index, "id"], message: `Duplicate requirement id: ${requirement.id}` });
+    }
+    seen.add(requirement.id);
+  });
+});
+
+export const specificationPackageSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  revision: z.string().trim().min(1).max(100),
+  requirements: requirementsSchema
+}).strict();

@@ -5,6 +5,12 @@ export type ValidationSeverity = "info" | "warning" | "critical";
 export type DoorQuantifier = "any" | "all";
 export type LogicalOperator = "and" | "or";
 
+export interface RequirementSource {
+  document: string;
+  section: string;
+  revision?: string;
+}
+
 export type CompositeCondition =
   | {
       type: "room_area_range";
@@ -52,6 +58,7 @@ export type Requirement =
       title: string;
       type: "minimum_room_area";
       severity: ValidationSeverity;
+      source?: RequirementSource;
       roomType: RoomType;
       minAreaSqm: number;
       maxAreaSqm?: number;
@@ -61,6 +68,7 @@ export type Requirement =
       title: string;
       type: "minimum_door_width_for_room_type";
       severity: ValidationSeverity;
+      source?: RequirementSource;
       roomType: RoomType;
       minDoorWidthM: number;
       maxDoorWidthM?: number;
@@ -71,12 +79,14 @@ export type Requirement =
       title: string;
       type: "room_has_connected_door";
       severity: ValidationSeverity;
+      source?: RequirementSource;
     }
   | {
       id: string;
       title: string;
       type: "composite_room_rule";
       severity: ValidationSeverity;
+      source?: RequirementSource;
       roomType: RoomType;
       operator: LogicalOperator;
       conditions: CompositeCondition[];
@@ -99,4 +109,10 @@ export interface ValidationResult {
   summary: string;
   affectedElementIds: string[];
   evidence: EvidenceItem[];
+}
+
+export interface SpecificationPackage {
+  name: string;
+  revision: string;
+  requirements: Requirement[];
 }

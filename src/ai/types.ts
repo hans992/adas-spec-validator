@@ -10,7 +10,7 @@ export const adasChatRequestSchema = z.object({
   userQuestion: z.string().trim().min(1).max(1000),
   selectedRole: adasRoleSchema,
   normalizedModel: normalizedModelSchema,
-  requirements: requirementsSchema.max(100)
+  requirements: requirementsSchema
 });
 
 export const adasChatResponseSchema = z.object({

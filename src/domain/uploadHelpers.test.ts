@@ -3,7 +3,8 @@ import { sampleModelData, sampleRequirements } from "@/domain/sampleData";
 import {
   parseUploadedJson,
   validateUploadedModel,
-  validateUploadedRequirements
+  validateUploadedRequirements,
+  validateUploadedSpecification
 } from "@/domain/uploadHelpers";
 import { validateWithDeterministicRules } from "@/domain/validationPipeline";
 
@@ -55,5 +56,21 @@ describe("upload helpers", () => {
     });
     expect(unresolved.success).toBe(false);
     expect(oneSided.success).toBe(false);
+  });
+});
+
+describe("validateUploadedSpecification", () => {
+  it("accepts a versioned package and retains legacy array imports", () => {
+    const requirement = {
+      id: "ADAS-001",
+      title: "Rooms have doors",
+      type: "room_has_connected_door",
+      severity: "warning"
+    };
+    const packaged = validateUploadedSpecification({ name: "ADAS Spec", revision: "C", requirements: [requirement] });
+    const legacy = validateUploadedSpecification([requirement]);
+
+    expect(packaged.success && packaged.data.revision).toBe("C");
+    expect(legacy.success && legacy.data.revision).toBe("Unspecified");
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { requirementSchema } from "@/domain/schemas";
+import { requirementSchema, requirementsSchema, specificationPackageSchema } from "@/domain/schemas";
 
 describe("requirementSchema", () => {
   it("accepts valid ranges and door quantifiers", () => {
@@ -12,6 +12,36 @@ describe("requirementSchema", () => {
       minDoorWidthM: 0.85,
       maxDoorWidthM: 1.2,
       quantifier: "any"
+    }).success).toBe(true);
+  });
+
+  it("preserves a traceable source reference", () => {
+    const result = requirementSchema.safeParse({
+      id: "ADAS-DOOR-0042",
+      title: "Office doors meet the clear-width specification",
+      type: "minimum_door_width_for_room_type",
+      severity: "critical",
+      roomType: "office",
+      minDoorWidthM: 0.85,
+      source: { document: "ADAS Building Specification", section: "4.2.1", revision: "C" }
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.source?.section).toBe("4.2.1");
+  });
+
+  it("rejects duplicate IDs across a specification package", () => {
+    const requirement = {
+      id: "ADAS-001",
+      title: "Every room has a connected door",
+      type: "room_has_connected_door" as const,
+      severity: "warning" as const
+    };
+    expect(requirementsSchema.safeParse([requirement, requirement]).success).toBe(false);
+    expect(specificationPackageSchema.safeParse({
+      name: "ADAS Building Specification",
+      revision: "C",
+      requirements: [requirement]
     }).success).toBe(true);
   });
 

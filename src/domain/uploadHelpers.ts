@@ -1,6 +1,6 @@
 import { ZodError } from "zod";
-import { normalizedModelSchema, requirementsSchema } from "@/domain/schemas";
-import type { NormalizedModel, Requirement } from "@/domain/types";
+import { normalizedModelSchema, requirementsSchema, specificationPackageSchema } from "@/domain/schemas";
+import type { NormalizedModel, Requirement, SpecificationPackage } from "@/domain/types";
 
 export type UploadParseResult<T> =
   | { success: true; data: T }
@@ -37,4 +37,22 @@ export function validateUploadedRequirements(rawData: unknown): UploadParseResul
     }
     return { success: false, error: "Requirements validation failed." };
   }
+}
+
+export function validateUploadedSpecification(rawData: unknown): UploadParseResult<SpecificationPackage> {
+  const packaged = specificationPackageSchema.safeParse(rawData);
+  if (packaged.success) return { success: true, data: packaged.data };
+
+  const legacy = requirementsSchema.safeParse(rawData);
+  if (legacy.success) {
+    return {
+      success: true,
+      data: { name: "Imported requirements", revision: "Unspecified", requirements: legacy.data }
+    };
+  }
+
+  return {
+    success: false,
+    error: `Specification package schema error: ${packaged.error.issues[0]?.message ?? "Invalid specification data."}`
+  };
 }

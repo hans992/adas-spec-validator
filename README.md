@@ -7,7 +7,7 @@ This is not a generic BIM chatbot and the LLM is never the source of truth. Rule
 ## What works today
 
 - Native IFC2x3 and IFC4 upload through a server-side `web-ifc` parser
-- Normalized JSON model and requirement upload with Zod validation
+- Normalized JSON model and versioned specification-package upload with Zod validation
 - Deterministic `pass`, `fail`, `unknown`, and `not_applicable` outcomes
 - Minimum/maximum ranges, `any`/`all` connected-door quantifiers, and composite `AND`/`OR` room rules
 - Evidence records with observed values, expected values, and affected element IDs
@@ -21,6 +21,7 @@ This is not a generic BIM chatbot and the LLM is never the source of truth. Rule
 - Authenticated project and validation-history API backed by Supabase Row Level Security
 - Version-to-version validation comparison with requirement and model deltas
 - Per-requirement review decisions and audit notes on saved validation runs
+- Stable requirement IDs and document/section/revision traceability in findings and reports
 
 ## Architecture
 
@@ -80,6 +81,34 @@ For example, this requirement passes for each office whose area is within 12–2
 ```
 
 Composite rules target one room type and produce one result per matching room. Each condition retains its own evidence inside the combined result. `AND` fails as soon as a condition fails; `OR` passes as soon as a condition passes. Otherwise, incomplete facts keep the combined result `unknown` when they could still change the outcome.
+
+### Versioned specification packages
+
+The requirements upload accepts the original JSON array for backwards compatibility and a traceable package with a specification name, revision, and up to 100 uniquely identified requirements:
+
+```json
+{
+  "name": "ADAS Building Specification",
+  "revision": "C",
+  "requirements": [
+    {
+      "id": "ADAS-DOOR-0042",
+      "title": "Office doors provide the specified clear width",
+      "type": "minimum_door_width_for_room_type",
+      "severity": "critical",
+      "roomType": "office",
+      "minDoorWidthM": 0.85,
+      "source": {
+        "document": "ADAS Building Specification",
+        "section": "4.2.1",
+        "revision": "C"
+      }
+    }
+  ]
+}
+```
+
+Duplicate requirement IDs are rejected before validation. Source references remain attached to the requirement through server revalidation and persisted snapshots, and are shown in element findings, Markdown exports, and printable reports.
 
 Every requirement produces structured outcomes. Missing facts remain `unknown`; non-applicable requirements remain `not_applicable`; neither is silently converted into a pass or failure.
 
