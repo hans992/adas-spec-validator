@@ -25,3 +25,12 @@ body {
     radial-gradient(900px 420px at 85% -10%, rgba(99, 102, 241, 0.14), transparent 60%),
     linear-gradient(180deg, #020617 0%, #0f172a 100%);
 }
+
+@media print {
+  @page { size: A4; margin: 14mm; }
+  body * { visibility: hidden; }
+  .report-shell, .report-shell * { visibility: visible; }
+  .report-shell { position: absolute !important; inset: 0; overflow: visible !important; }
+  .report-controls { display: none !important; }
+  .report-assessment { break-inside: avoid; page-break-inside: avoid; }
+}
