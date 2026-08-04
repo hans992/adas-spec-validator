@@ -1,4 +1,8 @@
-import {
+// @ts-expect-error This CommonJS boundary intentionally selects web-ifc's Node export.
+import webIfcNode from "./webIfcNode.cjs";
+import type * as WebIfcModule from "web-ifc";
+
+const {
   IFCBUILDINGSTOREY,
   IFCDOOR,
   IFCDOORTYPE,
@@ -15,7 +19,8 @@ import {
   IFCSIUNIT,
   IFCSPACE,
   IfcAPI
-} from "web-ifc";
+} = webIfcNode as typeof WebIfcModule;
+import { basename, join } from "node:path";
 
 import { normalizedModelSchema } from "@/domain/schemas";
 import type { Door, Level, NormalizedModel, Room, RoomType } from "@/domain/types";
@@ -41,6 +46,7 @@ export interface IfcParseResult {
 
 type IfcRef = { value?: number } | number | null | undefined;
 type IfcValue = { value?: unknown; _representationValue?: unknown } | string | number | null | undefined;
+type IfcAPI = InstanceType<typeof IfcAPI>;
 
 const MAX_IFC_BYTES = 20 * 1024 * 1024;
 
@@ -178,7 +184,10 @@ export async function parseIfcBytes(bytes: Uint8Array): Promise<IfcParseResult> 
   }
 
   const api = new IfcAPI();
-  await api.Init();
+  await api.Init(
+    (wasmFile) => join(process.cwd(), "node_modules", "web-ifc", basename(wasmFile)),
+    true
+  );
   let modelId: number | undefined;
 
   try {

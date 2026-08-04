@@ -19,6 +19,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { BimFloorPlan } from "@/components/BimFloorPlan";
 import { BimInspector } from "@/components/BimInspector";
 import { RuleBuilder } from "@/components/RuleBuilder";
+import { ProjectWorkspace } from "@/components/ProjectWorkspace";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -226,6 +227,23 @@ export default function Home() {
     handleDeselect();
   }
 
+  function openSavedValidation(snapshot: {
+    model_name: string;
+    normalized_model: NormalizedModel;
+    requirements: Requirement[];
+  }) {
+    setModelData(snapshot.normalized_model);
+    setRequirementsData(snapshot.requirements);
+    setModelSource("uploaded");
+    setRequirementsSource("uploaded");
+    setModelFilename(snapshot.model_name);
+    setRequirementsFilename("Saved requirement snapshot");
+    setIfcDiagnostics(null);
+    setModelError("");
+    setRequirementsError("");
+    handleDeselect();
+  }
+
   // Export Compliance Report Downloader
   function exportComplianceReport() {
     const reportMd = `# ADAS Spec Validator - Building Compliance Report
@@ -334,6 +352,13 @@ ${res.evidence
             </div>
           </div>
         </div>
+
+        <ProjectWorkspace
+          model={model}
+          requirements={requirements}
+          modelName={modelFilename || "workspace-model.json"}
+          onOpen={openSavedValidation}
+        />
 
         {/* Global Stats Compliance Section */}
         <div className="grid gap-4 md:grid-cols-4">
