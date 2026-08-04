@@ -110,6 +110,8 @@ The requirements upload accepts the original JSON array for backwards compatibil
 
 Duplicate requirement IDs are rejected before validation. Source references remain attached to the requirement through server revalidation and persisted snapshots, and are shown in element findings, Markdown exports, and printable reports.
 
+The workspace also accepts CSV specifications with one requirement per row. Required columns are `id`, `title`, `type`, and `severity`. Optional package columns are `specification_name` and `specification_revision`; traceability uses `source_document`, `source_section`, and `source_revision`. Rule-specific values use snake-case columns such as `room_type`, `min_area_sqm`, `max_area_sqm`, `min_door_width_m`, `max_door_width_m`, and `quantifier`. Composite rule conditions can be supplied as JSON in `conditions_json`. Package metadata must be consistent across rows, and the imported result passes the same schema and duplicate-ID validation as JSON uploads.
+
 Every requirement produces structured outcomes. Missing facts remain `unknown`; non-applicable requirements remain `not_applicable`; neither is silently converted into a pass or failure.
 
 Compliance is deliberately split into separate metrics:

@@ -27,13 +27,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { sampleModelData, sampleRequirements } from "@/domain/sampleData";
 import {
   parseUploadedJson,
+  parseUploadedSpecificationCsv,
   validateUploadedModel,
   validateUploadedSpecification
 } from "@/domain/uploadHelpers";
+import type { UploadParseResult } from "@/domain/uploadHelpers";
 import { validateWithDeterministicRules } from "@/domain/validationPipeline";
 import { calculateComplianceMetrics } from "@/domain/complianceMetrics";
 import type { IfcParseDiagnostics } from "@/domain/ifcParser";
-import type { NormalizedModel, Requirement } from "@/domain/types";
+import type { NormalizedModel, Requirement, SpecificationPackage } from "@/domain/types";
 
 type DataSourceStatus = "sample" | "uploaded";
 
@@ -169,13 +171,17 @@ export default function Home() {
 
   const handleRequirementsFile = useCallback(async (file: File) => {
     const rawText = await file.text();
-    const parseResult = parseUploadedJson(rawText);
-    if (!parseResult.success) {
-      setRequirementsError(parseResult.error);
-      return;
+    let validationResult: UploadParseResult<SpecificationPackage>;
+    if (file.name.toLowerCase().endsWith(".csv")) {
+      validationResult = parseUploadedSpecificationCsv(rawText);
+    } else {
+      const parseResult = parseUploadedJson(rawText);
+      if (!parseResult.success) {
+        setRequirementsError(parseResult.error);
+        return;
+      }
+      validationResult = validateUploadedSpecification(parseResult.data);
     }
-
-    const validationResult = validateUploadedSpecification(parseResult.data);
     if (!validationResult.success) {
       setRequirementsError(validationResult.error);
       return;
@@ -207,7 +213,7 @@ export default function Home() {
   });
 
   const requirementsDropzone = useDropzone({
-    accept: { "application/json": [".json"] },
+    accept: { "application/json": [".json"], "text/csv": [".csv"] },
     maxFiles: 1,
     multiple: false,
     onDrop: (acceptedFiles) => {
@@ -552,8 +558,8 @@ ${res.evidence
                     <div className="flex items-start gap-3">
                       <FileJson className="mt-0.5 h-4 w-4 text-slate-500 flex-shrink-0" />
                       <div className="space-y-1">
-                        <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">Upload Rule JSON</p>
-                        <p className="text-[10px] text-slate-500">Inject raw JSON file outlining validation rule arrays.</p>
+                        <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">Upload Specification</p>
+                        <p className="text-[10px] text-slate-500">Import a traceable JSON package or one-requirement-per-row CSV.</p>
                       </div>
                     </div>
                     {requirementsFilename && (
