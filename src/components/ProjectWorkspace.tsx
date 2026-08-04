@@ -1,15 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { FolderOpen, LogIn, LogOut, Save } from "lucide-react";
+import { FolderOpen, KeyRound, LogIn, LogOut, Save, UserPlus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { NormalizedModel, Requirement } from "@/domain/types";
 import {
   clearBrowserSession,
+  captureRecoverySession,
   readBrowserSession,
+  refreshBrowserSession,
+  requestPasswordReset,
   signInWithPassword,
+  signUpWithPassword,
+  updatePassword,
   type BrowserSession
 } from "@/persistence/browserSession";
 
@@ -32,15 +37,29 @@ export function ProjectWorkspace({ model, requirements, modelName, onOpen }: {
   const [newProjectName, setNewProjectName] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [authMode, setAuthMode] = useState<"signin" | "signup" | "forgot" | "recovery">("signin");
 
-  useEffect(() => setSession(readBrowserSession()), []);
+  useEffect(() => {
+    const recovery = captureRecoverySession();
+    if (recovery) { setSession(recovery); setAuthMode("recovery"); return; }
+    void refreshBrowserSession(readBrowserSession()).then(setSession);
+  }, []);
 
   const api = useCallback(async (path: string, init: RequestInit = {}) => {
-    if (!session) throw new Error("Sign in first.");
-    const response = await fetch(path, {
+    const activeSession = await refreshBrowserSession(session);
+    if (!activeSession) { setSession(null); throw new Error("Your session expired. Please sign in again."); }
+    if (activeSession.accessToken !== session?.accessToken) setSession(activeSession);
+    const request = (accessToken: string) => fetch(path, {
       ...init,
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.accessToken}`, ...(init.headers ?? {}) }
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}`, ...(init.headers ?? {}) }
     });
+    let response = await request(activeSession.accessToken);
+    if (response.status === 401) {
+      const refreshed = await refreshBrowserSession({ ...activeSession, expiresAt: 0 });
+      if (!refreshed) { setSession(null); throw new Error("Your session expired. Please sign in again."); }
+      setSession(refreshed);
+      response = await request(refreshed.accessToken);
+    }
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.error ?? "The request failed.");
     return payload;
@@ -68,13 +87,22 @@ export function ProjectWorkspace({ model, requirements, modelName, onOpen }: {
     finally { setBusy(false); }
   }
 
-  if (!session) return (
+  if (!session || authMode === "recovery") return (
     <Card className="shadow-md">
-      <CardHeader className="pb-3 text-left"><CardTitle className="text-sm">Project workspace</CardTitle><CardDescription className="text-xs">Sign in with your configured Supabase user to save and reopen validation runs.</CardDescription></CardHeader>
+      <CardHeader className="pb-3 text-left"><CardTitle className="text-sm">Project workspace</CardTitle><CardDescription className="text-xs">{authMode === "signup" ? "Create an account to save projects and validation history." : authMode === "forgot" ? "Enter your email to receive a secure password reset link." : authMode === "recovery" ? "Choose a new password for your account." : "Sign in to save and reopen validation runs."}</CardDescription></CardHeader>
       <CardContent className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
-        <input aria-label="Email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email" className="h-9 rounded-md border bg-transparent px-3 text-xs" />
+        {authMode !== "recovery" && <input aria-label="Email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email" className="h-9 rounded-md border bg-transparent px-3 text-xs" />}
+        {authMode !== "forgot" &&
         <input aria-label="Password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Password" className="h-9 rounded-md border bg-transparent px-3 text-xs" />
-        <Button disabled={busy || !email || !password} size="sm" onClick={() => void run(async () => setSession(await signInWithPassword(email, password)))}><LogIn className="mr-1.5 h-3.5 w-3.5" /> Sign in</Button>
+        }
+        {authMode === "signin" && <Button disabled={busy || !email || !password} size="sm" onClick={() => void run(async () => setSession(await signInWithPassword(email, password)))}><LogIn className="mr-1.5 h-3.5 w-3.5" /> Sign in</Button>}
+        {authMode === "signup" && <Button disabled={busy || !email || password.length < 8} size="sm" onClick={() => void run(async () => { const created = await signUpWithPassword(email, password); if (created) setSession(created); else { setMessage("Check your email to confirm your account."); setAuthMode("signin"); } })}><UserPlus className="mr-1.5 h-3.5 w-3.5" /> Create account</Button>}
+        {authMode === "forgot" && <Button disabled={busy || !email} size="sm" onClick={() => void run(async () => { await requestPasswordReset(email); setMessage("If the account exists, a reset link has been sent."); })}><KeyRound className="mr-1.5 h-3.5 w-3.5" /> Send reset link</Button>}
+        {authMode === "recovery" && <Button disabled={busy || password.length < 8 || !session} size="sm" onClick={() => void run(async () => { await updatePassword(session!.accessToken, password); setAuthMode("signin"); setMessage("Password updated."); })}><KeyRound className="mr-1.5 h-3.5 w-3.5" /> Update password</Button>}
+        <div className="flex gap-3 text-[11px] sm:col-span-3">
+          {authMode !== "signin" && <button type="button" className="underline" onClick={() => setAuthMode("signin")}>Back to sign in</button>}
+          {authMode === "signin" && <><button type="button" className="underline" onClick={() => setAuthMode("signup")}>Create account</button><button type="button" className="underline" onClick={() => setAuthMode("forgot")}>Forgot password?</button></>}
+        </div>
         {message && <p className="text-xs text-rose-500 sm:col-span-3">{message}</p>}
       </CardContent>
     </Card>
