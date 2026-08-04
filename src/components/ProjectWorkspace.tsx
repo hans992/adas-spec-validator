@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ValidationReport, type ValidationReview } from "@/components/ValidationReport";
 import type { NormalizedModel, Requirement, SpecificationPackage } from "@/domain/types";
 import { compareValidationSnapshots, type ValidationComparison, type ValidationSnapshot } from "@/domain/validationComparison";
+import { compareSpecificationRequirements, type RequirementChange } from "@/domain/specificationComparison";
 import {
   clearBrowserSession,
   captureRecoverySession,
@@ -59,6 +60,8 @@ export function ProjectWorkspace({ model, requirements, modelName, onOpen, speci
   const [selectedSpecificationId, setSelectedSpecificationId] = useState("");
   const [specificationDraftName, setSpecificationDraftName] = useState(specificationName);
   const [specificationDraftRevision, setSpecificationDraftRevision] = useState(specificationRevision);
+  const [comparisonSpecificationId, setComparisonSpecificationId] = useState("");
+  const [requirementChanges, setRequirementChanges] = useState<RequirementChange[]>([]);
 
   useEffect(() => {
     const recovery = captureRecoverySession();
@@ -176,6 +179,8 @@ export function ProjectWorkspace({ model, requirements, modelName, onOpen, speci
             <Button variant="outline" size="sm" disabled={busy || !selectedSpecificationId} onClick={() => { const selected = specifications.find((item) => item.id === selectedSpecificationId); if (selected) { onOpenSpecification(selected); setMessage("Specification revision loaded."); } }}><FolderOpen className="mr-1.5 h-3.5 w-3.5" /> Load</Button>
           </div>
           {specifications.length > 0 && <p className="text-[10px] text-slate-500">{specifications.length} saved revision{specifications.length === 1 ? "" : "s"}. Saving an existing name and revision is rejected to preserve audit history.</p>}
+          {specifications.length > 0 && <div className="grid gap-2 sm:grid-cols-[1fr_auto]"><select aria-label="Revision to compare" value={comparisonSpecificationId} onChange={(event) => setComparisonSpecificationId(event.target.value)} className="h-9 rounded-md border bg-transparent px-3 text-xs"><option value="">Compare active draft with…</option>{specifications.map((specification) => <option key={specification.id} value={specification.id}>{specification.name} · {specification.revision}</option>)}</select><Button variant="outline" size="sm" disabled={!comparisonSpecificationId} onClick={() => { const selected = specifications.find((item) => item.id === comparisonSpecificationId); if (selected) setRequirementChanges(compareSpecificationRequirements(selected.requirements, requirements)); }}><GitCompareArrows className="mr-1.5 h-3.5 w-3.5" /> Compare revisions</Button></div>}
+          {requirementChanges.length > 0 && <div className="grid grid-cols-4 gap-1 text-center">{(["added", "changed", "removed", "unchanged"] as const).map((kind) => <div key={kind} className="rounded bg-slate-100 p-1.5 dark:bg-slate-800"><p className="text-sm font-bold">{requirementChanges.filter((item) => item.kind === kind).length}</p><p className="text-[9px] capitalize">{kind}</p></div>)}</div>}
         </div>}
         <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
           <select aria-label="Active project" value={projectId} onChange={(event) => setProjectId(event.target.value)} className="h-9 rounded-md border bg-transparent px-3 text-xs"><option value="">Select a project</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select>

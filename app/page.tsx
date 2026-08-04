@@ -20,6 +20,7 @@ import { BimFloorPlan } from "@/components/BimFloorPlan";
 import { BimInspector } from "@/components/BimInspector";
 import { RuleBuilder } from "@/components/RuleBuilder";
 import { ProjectWorkspace } from "@/components/ProjectWorkspace";
+import { RequirementEditor } from "@/components/RequirementEditor";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -112,6 +113,12 @@ export default function Home() {
   const handleAddRequirement = useCallback((newReq: Requirement) => {
     setRequirementsData((prev) => [newReq, ...prev]);
     setRequirementsSource("uploaded");
+  }, []);
+
+  const handleRequirementsChange = useCallback((next: Requirement[]) => {
+    setRequirementsData(next);
+    setRequirementsSource("uploaded");
+    setRequirementsFilename("Edited requirement draft");
   }, []);
 
   // File parsers
@@ -389,6 +396,8 @@ ${res.evidence
           onOpenSpecification={openSavedSpecification}
           onOpen={openSavedValidation}
         />
+
+        <RequirementEditor requirements={requirementsData} onChange={handleRequirementsChange} />
 
         {/* Global Stats Compliance Section */}
         <div className="grid gap-4 md:grid-cols-4">
