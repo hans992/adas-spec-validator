@@ -5,14 +5,23 @@ import { useDropzone } from "react-dropzone";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   AlertTriangle,
+  ArrowLeft,
   Brain,
+  Building2,
   CheckCircle2,
   FileJson,
+  FileText,
+  FolderKanban,
+  GitCompareArrows,
+  LayoutDashboard,
+  ListChecks,
   UploadCloud,
   FileDown,
   RefreshCw,
-  ChevronRight
+  ChevronRight,
+  Users
 } from "lucide-react";
+import Link from "next/link";
 
 import { AdasChatPanel } from "@/components/AdasChatPanel";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -336,29 +345,62 @@ ${res.evidence
   }
 
   return (
-    <main className="min-h-screen px-4 py-6 sm:px-6 sm:py-8 lg:px-8 text-slate-900 dark:text-slate-100 transition-colors duration-200">
-      <div className="mx-auto max-w-[1700px] space-y-6">
+    <main className="workspace-app min-h-screen text-[var(--adas-ink)] transition-colors duration-200">
+      <div className="workspace-shell">
+        <aside className="workspace-sidebar">
+          <Link href="/" className="workspace-brand" aria-label="ADAS home">
+            <span className="workspace-brand-mark"><Building2 className="h-4 w-4" /></span>
+            <span><strong>ADAS</strong><small>Spec Validator</small></span>
+          </Link>
+          <div className="workspace-project-switcher">
+            <span className="tech-label">Active project</span>
+            <strong>Riverside Office</strong>
+            <small>Sample workspace</small>
+          </div>
+          <nav className="workspace-nav" aria-label="Workspace navigation">
+            <a href="#overview" className="is-active"><LayoutDashboard />Overview</a>
+            <a href="#project"><FolderKanban />Project</a>
+            <a href="#requirements"><FileText />Requirements</a>
+            <a href="#validation"><ListChecks />Validation</a>
+            <a href="#traceability"><GitCompareArrows />Traceability</a>
+            <a href="#team"><Users />Team review</a>
+          </nav>
+          <div className="workspace-sidebar-footer">
+            <Link href="/"><ArrowLeft />Back to website</Link>
+          </div>
+        </aside>
 
-        {/* Header Block with Neon Glare */}
-        <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-xl shadow-slate-100/50 dark:border-slate-800/80 dark:bg-slate-900/60 dark:shadow-slate-950/20 backdrop-blur-md">
-          {/* Ambient Glow */}
-          <div className="absolute top-0 right-0 -mt-10 -mr-10 w-44 h-44 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="workspace-stage">
+          <div className="workspace-topbar">
+            <div>
+              <span className="tech-label">Architecture & construction</span>
+              <span className="workspace-crumb">Projects / Riverside Office / Overview</span>
+            </div>
+            <div className="workspace-topbar-actions">
+              <a href="#requirements" className="workspace-search"><FileText />Open requirements</a>
+              <ThemeToggle />
+            </div>
+          </div>
+
+          <div className="workspace-content mx-auto max-w-[1700px] space-y-6">
+
+        <div id="overview" className="workspace-hero relative overflow-hidden p-5 sm:p-7">
 
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="space-y-1.5 text-left">
               <div className="flex items-center gap-2">
-                <Badge variant="outline" className="text-[10px] tracking-widest uppercase border-indigo-200 bg-indigo-50/30 text-indigo-700 dark:border-indigo-900 dark:bg-indigo-950/20 dark:text-indigo-400">
-                  BIM Design Automation Studio
+                <Badge variant="outline" className="workspace-eyebrow">
+                  Project validation workspace
                 </Badge>
-                <Badge className="bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/15 border-none text-[10px] py-0">
-                  PRO BOUNDARY Extractor
+                <Badge className="workspace-status-badge">
+                  Live deterministic checks
                 </Badge>
               </div>
-              <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-slate-950 to-indigo-900 bg-clip-text text-transparent dark:from-white dark:to-indigo-300">
-                ADAS Spec Validator
+              <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+                Riverside Office validation
               </h1>
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                Deterministic compliance engine mapping Revit / AutoCAD models against strict architectural requirements.
+                Review model facts against architectural requirements, evidence and revision history in one traceable workspace.
               </p>
               <p className="text-xs text-slate-400 dark:text-slate-500 font-mono">{dataSourceLabel}</p>
               <p className="text-[11px] text-slate-400">Specification: {specificationName} · revision {specificationRevision}</p>
@@ -382,12 +424,11 @@ ${res.evidence
               >
                 <RefreshCw className="h-3.5 w-3.5" /> Reset Demo
               </Button>
-              <ThemeToggle />
             </div>
           </div>
         </div>
 
-        <ProjectWorkspace
+        <section id="project"><ProjectWorkspace
           model={model}
           requirements={requirements}
           modelName={modelFilename || "workspace-model.json"}
@@ -395,12 +436,12 @@ ${res.evidence
           specificationRevision={specificationRevision}
           onOpenSpecification={openSavedSpecification}
           onOpen={openSavedValidation}
-        />
+        /></section>
 
-        <RequirementEditor requirements={requirementsData} onChange={handleRequirementsChange} />
+        <section id="requirements"><RequirementEditor requirements={requirementsData} onChange={handleRequirementsChange} /></section>
 
         {/* Global Stats Compliance Section */}
-        <div className="grid gap-4 md:grid-cols-4">
+        <div id="traceability" className="grid gap-4 md:grid-cols-4">
           {/* Radial progress ring stats card */}
           <Card className="flex items-center justify-between p-4 overflow-hidden shadow-md">
             <div className="space-y-1 text-left">
@@ -453,7 +494,7 @@ ${res.evidence
         </div>
 
         {/* Workspace Layout */}
-        <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr_1fr] xl:grid-cols-[1.2fr_0.9fr_0.9fr]">
+        <div id="validation" className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr_1fr] xl:grid-cols-[1.2fr_0.9fr_0.9fr]">
 
           {/* COLUMN 1: FLOOR PLAN VISUALIZER & IFC LOGGER */}
           <section className="space-y-6 flex flex-col">
@@ -613,7 +654,7 @@ ${res.evidence
           </section>
 
           {/* COLUMN 2: DETERMINISTIC VALIDATOR RESULTS & NO CODE BUILDER */}
-          <section className="space-y-6">
+          <section id="team" className="space-y-6">
 
             {/* Visual Rule Builder Block */}
             <RuleBuilder onAddRequirement={handleAddRequirement} />
@@ -769,6 +810,8 @@ ${res.evidence
 
         </div>
 
+          </div>
+        </div>
       </div>
     </main>
   );
