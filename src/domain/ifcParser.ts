@@ -16,6 +16,7 @@ import {
   IFCSPACE,
   IfcAPI
 } from "web-ifc";
+import { basename, join } from "node:path";
 
 import { normalizedModelSchema } from "@/domain/schemas";
 import type { Door, Level, NormalizedModel, Room, RoomType } from "@/domain/types";
@@ -178,7 +179,10 @@ export async function parseIfcBytes(bytes: Uint8Array): Promise<IfcParseResult> 
   }
 
   const api = new IfcAPI();
-  await api.Init();
+  await api.Init(
+    (wasmFile) => join(process.cwd(), "node_modules", "web-ifc", basename(wasmFile)),
+    true
+  );
   let modelId: number | undefined;
 
   try {
