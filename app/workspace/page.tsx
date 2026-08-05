@@ -33,6 +33,7 @@ import { RequirementEditor } from "@/components/RequirementEditor";
 import { XlsxImportWizard } from "@/components/XlsxImportWizard";
 import { DocxImportWizard } from "@/components/DocxImportWizard";
 import { PdfImportWizard } from "@/components/PdfImportWizard";
+import { TraceabilityMatrix } from "@/components/TraceabilityMatrix";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,7 +50,8 @@ import { validateWithDeterministicRules } from "@/domain/validationPipeline";
 import { calculateComplianceMetrics } from "@/domain/complianceMetrics";
 import type { IfcParseDiagnostics } from "@/domain/ifcParser";
 import { exportSpecificationXlsx } from "@/domain/specificationXlsx";
-import type { NormalizedModel, Requirement, SpecificationPackage } from "@/domain/types";
+import type { ReviewRecord } from "@/domain/traceabilityMatrix";
+import type { DocumentSourceSnapshot, NormalizedModel, Requirement, SpecificationPackage } from "@/domain/types";
 import { authenticatedBrowserApi } from "@/persistence/browserApi";
 
 type DataSourceStatus = "sample" | "uploaded";
@@ -75,6 +77,9 @@ export default function Home() {
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [showPdfImporter, setShowPdfImporter] = useState(false);
   const [projectTarget, setProjectTarget] = useState<ProjectTarget | null>(null);
+  const [activeDocumentSource, setActiveDocumentSource] = useState<DocumentSourceSnapshot | undefined>(undefined);
+  const [matrixReviews, setMatrixReviews] = useState<ReviewRecord[]>([]);
+  const [matrixReviewsContext, setMatrixReviewsContext] = useState("");
   const [specificationRefreshKey, setSpecificationRefreshKey] = useState(0);
   const [importSummary, setImportSummary] = useState<{
     message: string;
@@ -243,6 +248,7 @@ export default function Home() {
     setRequirementsFilename(file.name);
     setSpecificationName(validationResult.data.name);
     setSpecificationRevision(validationResult.data.revision);
+    setActiveDocumentSource(validationResult.data.documentSource);
     setRequirementsError("");
   }, []);
 
@@ -298,6 +304,7 @@ export default function Home() {
     setRequirementsFilename(meta.fileName);
     setSpecificationName(specification.name);
     setSpecificationRevision(specification.revision);
+    setActiveDocumentSource(specification.documentSource);
     setRequirementsError("");
     setImportSummary({
       message: `${meta.includedRows} requirements confirmed; ${meta.excludedRows.length} rows excluded` +
@@ -325,6 +332,7 @@ export default function Home() {
     setRequirementsFilename(meta.fileName);
     setSpecificationName(specification.name);
     setSpecificationRevision(specification.revision);
+    setActiveDocumentSource(specification.documentSource);
     setRequirementsError("");
     setImportSummary({
       message: `${meta.includedRows} DOCX requirements confirmed with durable source snapshot` +
@@ -354,6 +362,7 @@ export default function Home() {
     setRequirementsFilename(meta.fileName);
     setSpecificationName(specification.name);
     setSpecificationRevision(specification.revision);
+    setActiveDocumentSource(specification.documentSource);
     setRequirementsError("");
     const pageNote = specification.documentSource?.kind === "pdf"
       ? ` across ${specification.documentSource.pageCount} pages`
@@ -395,6 +404,9 @@ export default function Home() {
     setRequirementsFilename("");
     setSpecificationName("Sample architectural requirements");
     setSpecificationRevision("Demo");
+    setActiveDocumentSource(undefined);
+    setMatrixReviews([]);
+    setMatrixReviewsContext("");
     setIfcDiagnostics(null);
     handleDeselect();
   }
@@ -412,6 +424,7 @@ export default function Home() {
     setRequirementsFilename("Saved requirement snapshot");
     setSpecificationName("Saved requirement snapshot");
     setSpecificationRevision("Stored with validation run");
+    setActiveDocumentSource(undefined);
     setIfcDiagnostics(null);
     setModelError("");
     setRequirementsError("");
@@ -424,6 +437,7 @@ export default function Home() {
     setRequirementsFilename("Project specification library");
     setSpecificationName(specification.name);
     setSpecificationRevision(specification.revision);
+    setActiveDocumentSource(specification.documentSource);
     setRequirementsError("");
   }
 
@@ -612,6 +626,7 @@ ${res.evidence
           onOpenSpecification={openSavedSpecification}
           onOpen={openSavedValidation}
           onProjectTargetChange={setProjectTarget}
+          onReviewsLoaded={(reviews, context) => { setMatrixReviews(reviews); setMatrixReviewsContext(context); }}
           specificationRefreshKey={specificationRefreshKey}
         /></section>
 
@@ -669,6 +684,15 @@ ${res.evidence
             </Card>
           ))}
         </div>
+
+        <TraceabilityMatrix
+          requirements={requirements}
+          results={results}
+          reviews={matrixReviews}
+          documentSource={activeDocumentSource}
+          reviewsContext={matrixReviewsContext || undefined}
+          onSelectElement={(elementId, elementType) => handleSelectElement(elementId, elementType === "door" ? "door" : "room")}
+        />
 
         {/* Workspace Layout */}
         <div id="validation" className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr_1fr] xl:grid-cols-[1.2fr_0.9fr_0.9fr]">

@@ -26,6 +26,7 @@ This is not a generic BIM chatbot and the LLM is never the source of truth. Rule
 - Reviewed XLSX import/export with atomic confirmation
 - Reviewed DOCX import with OOXML provenance, source approval, and durable fragment snapshots
 - Reviewed text-based PDF import with page anchors, source-page preview, and no OCR mixing
+- Full traceability matrix (source clause → requirement → rule → evidence → finding → review) with gap filters, six separate coverage metrics, and CSV/XLSX export
 
 ## Architecture
 
@@ -161,6 +162,27 @@ Compliance is deliberately split into separate metrics:
 - **Critical failures:** failed requirements with critical severity
 
 Metrics are aggregated per requirement, so a rule affecting many elements cannot outweigh another requirement simply by producing more result rows.
+
+### Traceability matrix
+
+The workspace renders a full traceability matrix over the chain **source clause → requirement → validation rule → model evidence → finding → review decision**, so any requirement can answer: where did it come from, how was it checked, on which model element, what was found, and who made the final decision.
+
+- One row per requirement with its findings, affected element IDs (clickable, highlighting the element in the floor plan), and the review decision loaded from the opened validation report
+- Source clauses resolved from the durable DOCX/PDF snapshot open inline with the exact text, anchor location (paragraph or PDF page), file name, and content hash
+- Filters by source document, discipline, and severity, plus gap views: uncovered requirements (no results), requirements without an executable rule, unknown results, findings without a review decision, and waived findings
+- Coverage tables grouped by specification document and by discipline
+- CSV and XLSX export (metrics, matrix, and coverage sheets); export respects active filters
+
+There is deliberately no single aggregated compliance number. The matrix reports six separate metrics, each with numerator and denominator:
+
+- **Extraction coverage:** requirements with a recorded source (document/section or fragment IDs)
+- **Rule coverage:** requirements with an executable deterministic rule
+- **Evaluation coverage:** determined requirements among applicable ones
+- **Pass rate:** compliant requirements among determined ones
+- **Review completion:** requirements needing review (violation or unknown) that have a decision
+- **Source traceability coverage:** requirements whose source fragments resolve inside the persisted document snapshot
+
+Empty denominators report as "—", never as a fake 0% or 100%.
 
 ## IFC ingestion
 
