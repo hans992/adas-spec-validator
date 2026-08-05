@@ -8,6 +8,100 @@ const requirementSourceSchema = z.object({
   revision: z.string().trim().min(1).max(100).optional()
 }).strict();
 const quantityTypeSchema = z.enum(["length", "area", "volume", "count", "percentage", "angle", "untyped"]);
+const sourceApprovalSchema = z.object({
+  status: z.enum(["pending", "approved", "rejected"]),
+  approvedBy: z.string().trim().min(1).max(200).optional(),
+  approvedAt: z.string().trim().min(1).max(64).optional()
+}).strict();
+const requirementProvenanceSchema = z.object({
+  origin: z.enum(["deterministic", "ai_draft", "user"]),
+  mergedFromDraftIds: z.array(z.string().trim().min(1).max(100)).max(50).optional(),
+  splitFromDraftId: z.string().trim().min(1).max(100).optional(),
+  supersededByDraftIds: z.array(z.string().trim().min(1).max(100)).max(20).optional(),
+  superseded: z.boolean().optional()
+}).strict();
+const docxSourceAnchorSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("paragraph"),
+    bodyIndex: z.number().int().nonnegative(),
+    paragraphIndex: z.number().int().nonnegative(),
+    startOffset: z.number().int().nonnegative(),
+    endOffset: z.number().int().nonnegative()
+  }).strict(),
+  z.object({
+    kind: z.literal("table_cell"),
+    tableIndex: z.number().int().nonnegative(),
+    rowIndex: z.number().int().nonnegative(),
+    cellIndex: z.number().int().nonnegative(),
+    paragraphIndex: z.number().int().nonnegative().optional(),
+    startOffset: z.number().int().nonnegative().optional(),
+    endOffset: z.number().int().nonnegative().optional()
+  }).strict()
+]);
+const documentFragmentSchema = z.object({
+  fragmentId: z.string().trim().min(1).max(120),
+  kind: z.enum([
+    "heading",
+    "subheading",
+    "numbered_clause",
+    "bullet_item",
+    "table_cell",
+    "mandatory_candidate",
+    "paragraph",
+    "metadata"
+  ]),
+  exactText: z.string().max(20_000),
+  numberingLabel: z.string().trim().max(100).optional(),
+  headingPath: z.array(z.string().trim().max(500)).max(20),
+  tableRef: z.object({
+    tableIndex: z.number().int().nonnegative(),
+    rowIndex: z.number().int().nonnegative(),
+    cellIndex: z.number().int().nonnegative()
+  }).strict().optional(),
+  sourceAnchor: docxSourceAnchorSchema,
+  revisionContent: z.boolean().optional(),
+  languageHints: z.array(z.string().trim().min(1).max(20)).max(10).optional()
+}).strict();
+export { documentFragmentSchema };
+export const documentSourceSnapshotSchema = z.object({
+  kind: z.literal("docx"),
+  fileName: z.string().trim().min(1).max(180),
+  contentHash: z.string().trim().regex(/^[a-f0-9]{64}$/),
+  parserVersion: z.string().trim().min(1).max(40),
+  language: z.string().trim().min(2).max(16).optional(),
+  metadata: z.object({
+    title: z.string().trim().max(500).optional(),
+    creator: z.string().trim().max(200).optional(),
+    subject: z.string().trim().max(500).optional(),
+    description: z.string().trim().max(2000).optional(),
+    lastModifiedBy: z.string().trim().max(200).optional(),
+    created: z.string().trim().max(64).optional(),
+    modified: z.string().trim().max(64).optional()
+  }).strict(),
+  fragments: z.array(documentFragmentSchema).max(20_000),
+  unsupportedContent: z.array(z.object({
+    kind: z.string().trim().min(1).max(80),
+    count: z.number().int().nonnegative(),
+    message: z.string().trim().min(1).max(500)
+  }).strict()).max(100),
+  trackChanges: z.object({
+    present: z.boolean(),
+    insertedRuns: z.number().int().nonnegative(),
+    deletedRuns: z.number().int().nonnegative(),
+    comments: z.number().int().nonnegative(),
+    warning: z.string().trim().max(1000).optional()
+  }).strict(),
+  fragmentRequirementMap: z.array(z.object({
+    requirementId: z.string().trim().min(1).max(100),
+    fragmentIds: z.array(z.string().trim().min(1).max(120)).min(1).max(50),
+    textRanges: z.array(z.object({
+      fragmentId: z.string().trim().min(1).max(120),
+      startOffset: z.number().int().nonnegative(),
+      endOffset: z.number().int().nonnegative(),
+      exactText: z.string().max(20_000)
+    }).strict()).max(50)
+  }).strict()).max(1000)
+}).strict();
 const requirementMetadataShape = {
   description: z.string().trim().max(4000).optional(),
   discipline: z.string().trim().max(100).optional(),
@@ -21,7 +115,10 @@ const requirementMetadataShape = {
     "informational",
     "requires_rule_configuration",
     "ready_for_validation"
-  ]).optional()
+  ]).optional(),
+  sourceFragmentIds: z.array(z.string().trim().min(1).max(120)).max(50).optional(),
+  sourceApproval: sourceApprovalSchema.optional(),
+  provenance: requirementProvenanceSchema.optional()
 };
 
 const levelSchema = z.object({
@@ -252,5 +349,6 @@ export const requirementsSchema = z.array(requirementSchema).min(1).max(1000).su
 export const specificationPackageSchema = z.object({
   name: z.string().trim().min(1).max(200),
   revision: z.string().trim().min(1).max(100),
-  requirements: requirementsSchema
+  requirements: requirementsSchema,
+  documentSource: documentSourceSnapshotSchema.optional()
 }).strict();

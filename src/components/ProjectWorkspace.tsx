@@ -105,8 +105,15 @@ export function ProjectWorkspace({ model, requirements, modelName, onOpen, speci
   const loadSpecifications = useCallback(async (selectedProjectId: string) => {
     if (!selectedProjectId) { setSpecifications([]); setSelectedSpecificationId(""); return; }
     const payload = await api(`/api/projects/${selectedProjectId}/specifications`);
-    setSpecifications(payload.specifications);
-    setSelectedSpecificationId((current) => payload.specifications.some((item: StoredSpecification) => item.id === current) ? current : payload.specifications[0]?.id ?? "");
+    const normalized = (payload.specifications as Array<StoredSpecification & { document_source?: SpecificationPackage["documentSource"] }>).map((item) => {
+      const { document_source, ...rest } = item;
+      return {
+        ...rest,
+        ...(document_source ? { documentSource: document_source } : {})
+      } as StoredSpecification;
+    });
+    setSpecifications(normalized);
+    setSelectedSpecificationId((current) => normalized.some((item) => item.id === current) ? current : normalized[0]?.id ?? "");
   }, [api]);
 
   useEffect(() => { void loadProjects().catch((error: Error) => setMessage(error.message)); }, [loadProjects]);
@@ -170,7 +177,7 @@ export function ProjectWorkspace({ model, requirements, modelName, onOpen, speci
           </div>
           <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
             <select aria-label="Saved specification revision" value={selectedSpecificationId} onChange={(event) => setSelectedSpecificationId(event.target.value)} className="h-9 rounded-md border bg-transparent px-3 text-xs"><option value="">No saved specifications</option>{specifications.map((specification) => <option key={specification.id} value={specification.id}>{specification.name} · {specification.revision} · {specification.requirements.length} rules</option>)}</select>
-            <Button variant="outline" size="sm" disabled={busy || !selectedSpecificationId} onClick={() => { const selected = specifications.find((item) => item.id === selectedSpecificationId); if (selected) { onOpenSpecification(selected); setMessage("Specification revision loaded."); } }}><FolderOpen className="mr-1.5 h-3.5 w-3.5" /> Load</Button>
+            <Button variant="outline" size="sm" disabled={busy || !selectedSpecificationId} onClick={() => { const selected = specifications.find((item) => item.id === selectedSpecificationId); if (selected) { const { id: _id, created_by: _createdBy, created_at: _createdAt, ...pkg } = selected; onOpenSpecification(pkg); setMessage("Specification revision loaded."); } }}><FolderOpen className="mr-1.5 h-3.5 w-3.5" /> Load</Button>
           </div>
           {specifications.length > 0 && <p className="text-[10px] text-slate-500">{specifications.length} saved revision{specifications.length === 1 ? "" : "s"}. Saving an existing name and revision is rejected to preserve audit history.</p>}
           {specifications.length > 0 && <div className="grid gap-2 sm:grid-cols-[1fr_auto]"><select aria-label="Revision to compare" value={comparisonSpecificationId} onChange={(event) => setComparisonSpecificationId(event.target.value)} className="h-9 rounded-md border bg-transparent px-3 text-xs"><option value="">Compare active draft with…</option>{specifications.map((specification) => <option key={specification.id} value={specification.id}>{specification.name} · {specification.revision}</option>)}</select><Button variant="outline" size="sm" disabled={!comparisonSpecificationId} onClick={() => { const selected = specifications.find((item) => item.id === comparisonSpecificationId); if (selected) setRequirementChanges(compareSpecificationRequirements(selected.requirements, requirements)); }}><GitCompareArrows className="mr-1.5 h-3.5 w-3.5" /> Compare revisions</Button></div>}

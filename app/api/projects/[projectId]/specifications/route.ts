@@ -17,7 +17,7 @@ export async function GET(request: Request, context: Context) {
     const { projectId } = await context.params;
     const packages = await supabaseRequest<unknown[]>(
       token,
-      `specification_packages?project_id=eq.${encodeURIComponent(projectId)}&select=id,project_id,name,revision,requirements,created_by,created_at&order=created_at.desc`
+      `specification_packages?project_id=eq.${encodeURIComponent(projectId)}&select=id,project_id,name,revision,requirements,document_source,created_by,created_at&order=created_at.desc`
     );
     return Response.json({ specifications: packages });
   } catch (error) {
@@ -37,6 +37,7 @@ export async function POST(request: Request, context: Context) {
     );
     if (!projects[0]) return Response.json({ error: "Project not found." }, { status: 404 });
 
+    const { documentSource, ...packageFields } = input;
     const rows = await supabaseRequest<unknown[]>(token, "specification_packages", {
       method: "POST",
       headers: { Prefer: "return=representation" },
@@ -44,7 +45,8 @@ export async function POST(request: Request, context: Context) {
         project_id: projectId,
         owner_id: projects[0].owner_id,
         created_by: actorId,
-        ...input
+        ...packageFields,
+        ...(documentSource !== undefined ? { document_source: documentSource } : {})
       })
     });
     return Response.json({ specification: rows[0] }, { status: 201 });

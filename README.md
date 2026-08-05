@@ -23,6 +23,8 @@ This is not a generic BIM chatbot and the LLM is never the source of truth. Rule
 - Per-requirement review decisions and audit notes on saved validation runs
 - Stable requirement IDs and document/section/revision traceability in findings and reports
 - Project specification library with immutable, reusable requirement revisions
+- Reviewed XLSX import/export with atomic confirmation
+- Reviewed DOCX import with OOXML provenance, source approval, and durable fragment snapshots
 
 ## Architecture
 
@@ -112,6 +114,18 @@ The requirements upload accepts the original JSON array for backwards compatibil
 Duplicate requirement IDs are rejected before validation. Source references remain attached to the requirement through server revalidation and persisted snapshots, and are shown in element findings, Markdown exports, and printable reports.
 
 The workspace also accepts CSV specifications with one requirement per row. Required columns are `id`, `title`, `type`, and `severity`. Optional package columns are `specification_name` and `specification_revision`; traceability uses `source_document`, `source_section`, and `source_revision`. Rule-specific values use snake-case columns such as `room_type`, `min_area_sqm`, `max_area_sqm`, `min_door_width_m`, `max_door_width_m`, and `quantifier`. Composite rule conditions can be supplied as JSON in `conditions_json`. Package metadata must be consistent across rows, and the imported result passes the same schema and duplicate-ID validation as JSON uploads.
+
+### Reviewed DOCX import
+
+DOCX import does **not** convert Word to HTML. It reads OOXML (`word/document.xml`, numbering, styles/metadata) with ZIP and XML safety limits, preserves deterministic fragment anchors (including character offsets for splits), and keeps AI outside the source-of-truth path.
+
+The split-pane review shows a **reconstructed document structure** beside editable requirement drafts. Users can merge/split (with undo/redo), approve sources, mark informational/excluded clauses, and confirm only when every included requirement has an approved source. Structural headings do not block confirmation.
+
+On confirm, the immutable specification revision stores a durable `documentSource` snapshot: SHA-256 of the DOCX, sanitized filename, parser version, metadata, all fragments (`exactText`, anchors, heading path, numbering/table refs), Track Changes summary, unsupported-content notices, and requirement→fragment mappings. Session-only drafts without a project warn that refresh discards them—the same atomic persistence model as XLSX.
+
+Track Changes: inserted text is included and flagged; deleted text is never treated as an active requirement; unresolved revisions and comments produce strong warnings. Unsupported content (text boxes, embeds, footnotes/endnotes, headers/footers, altChunk, drawings) is reported instead of silently dropped. Mandatory phrasing heuristics are language-aware (EN/DE, optional HR) and only boost candidacy.
+
+Optional `/api/docx/suggest` validates per-fragment offset citations or returns non-authoritative heuristic drafts. Deterministic extract + human review works without AI.
 
 ### Reviewed XLSX import and export
 

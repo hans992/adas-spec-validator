@@ -31,6 +31,7 @@ import { RuleBuilder } from "@/components/RuleBuilder";
 import { ProjectWorkspace, type ProjectTarget } from "@/components/ProjectWorkspace";
 import { RequirementEditor } from "@/components/RequirementEditor";
 import { XlsxImportWizard } from "@/components/XlsxImportWizard";
+import { DocxImportWizard } from "@/components/DocxImportWizard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -68,6 +69,8 @@ export default function Home() {
   const [ifcDiagnostics, setIfcDiagnostics] = useState<IfcParseDiagnostics | null>(null);
   const [xlsxFile, setXlsxFile] = useState<File | null>(null);
   const [showXlsxImporter, setShowXlsxImporter] = useState(false);
+  const [docxFile, setDocxFile] = useState<File | null>(null);
+  const [showDocxImporter, setShowDocxImporter] = useState(false);
   const [projectTarget, setProjectTarget] = useState<ProjectTarget | null>(null);
   const [specificationRefreshKey, setSpecificationRefreshKey] = useState(0);
   const [importSummary, setImportSummary] = useState<{
@@ -203,6 +206,12 @@ export default function Home() {
       setRequirementsError("");
       return;
     }
+    if (file.name.toLowerCase().endsWith(".docx")) {
+      setDocxFile(file);
+      setShowDocxImporter(true);
+      setRequirementsError("");
+      return;
+    }
     const rawText = await file.text();
     let validationResult: UploadParseResult<SpecificationPackage>;
     if (file.name.toLowerCase().endsWith(".csv")) {
@@ -249,7 +258,8 @@ export default function Home() {
     accept: {
       "application/json": [".json"],
       "text/csv": [".csv"],
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"]
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"]
     },
     maxFiles: 1,
     multiple: false,
@@ -286,6 +296,35 @@ export default function Home() {
     });
     setShowXlsxImporter(false);
     setXlsxFile(null);
+  }
+
+  async function confirmDocxImport(
+    specification: SpecificationPackage,
+    meta: { fileName: string; includedRows: number; excludedRows: Array<{ sourceRow: number; reason: string }> }
+  ) {
+    if (projectTarget && !projectTarget.canEdit) throw new Error("Viewers cannot create specification revisions.");
+    if (projectTarget) {
+      await authenticatedBrowserApi(`/api/projects/${projectTarget.projectId}/specifications`, {
+        method: "POST",
+        body: JSON.stringify(specification)
+      });
+      setSpecificationRefreshKey((current) => current + 1);
+    }
+    setRequirementsData(specification.requirements);
+    setRequirementsSource("uploaded");
+    setRequirementsFilename(meta.fileName);
+    setSpecificationName(specification.name);
+    setSpecificationRevision(specification.revision);
+    setRequirementsError("");
+    setImportSummary({
+      message: `${meta.includedRows} DOCX requirements confirmed with durable source snapshot` +
+        (specification.documentSource ? ` (${specification.documentSource.fragments.length} fragments, hash ${specification.documentSource.contentHash.slice(0, 12)}…)` : "") +
+        `; ${meta.excludedRows.length} clauses excluded` +
+        (projectTarget ? ` and revision saved to ${projectTarget.projectName}.` : ". Session-only draft: refresh will discard it."),
+      excludedRows: meta.excludedRows
+    });
+    setShowDocxImporter(false);
+    setDocxFile(null);
   }
 
   async function exportActiveSpecification() {
@@ -505,6 +544,12 @@ ${res.evidence
           onClose={() => { setShowXlsxImporter(false); setXlsxFile(null); }}
         /></section>}
 
+        {showDocxImporter && <section id="docx-import"><DocxImportWizard
+          initialFile={docxFile}
+          onConfirm={confirmDocxImport}
+          onClose={() => { setShowDocxImporter(false); setDocxFile(null); }}
+        /></section>}
+
         {importSummary && <div className="rounded border border-sky-200 bg-sky-50 p-3 text-xs text-sky-900">
           <p>{importSummary.message}</p>
           {importSummary.excludedRows.length > 0 && <details className="mt-2"><summary>Excluded-row audit</summary><ul className="mt-1 list-disc pl-5">{importSummary.excludedRows.map((row) => <li key={row.sourceRow}>Row {row.sourceRow}: {row.reason}</li>)}</ul></details>}
@@ -705,7 +750,7 @@ ${res.evidence
                       <FileJson className="mt-0.5 h-4 w-4 text-slate-500 flex-shrink-0" />
                       <div className="space-y-1">
                         <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">Upload Specification</p>
-                        <p className="text-[10px] text-slate-500">Import JSON/CSV directly or open the reviewed, atomic XLSX workflow.</p>
+                        <p className="text-[10px] text-slate-500">Import JSON/CSV, reviewed XLSX, or DOCX with durable source provenance.</p>
                       </div>
                     </div>
                     {requirementsFilename && (

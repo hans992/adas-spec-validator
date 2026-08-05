@@ -20,6 +20,101 @@ export interface RequirementMetadata {
   notes?: string;
   derivedFields?: string[];
   automationStatus?: RequirementAutomationStatus;
+  sourceFragmentIds?: string[];
+  sourceApproval?: SourceApproval;
+  provenance?: RequirementProvenance;
+}
+
+export type SourceApprovalStatus = "pending" | "approved" | "rejected";
+
+export interface SourceApproval {
+  status: SourceApprovalStatus;
+  approvedBy?: string;
+  approvedAt?: string;
+}
+
+export interface RequirementProvenance {
+  origin: "deterministic" | "ai_draft" | "user";
+  mergedFromDraftIds?: string[];
+  splitFromDraftId?: string;
+  supersededByDraftIds?: string[];
+  superseded?: boolean;
+}
+
+export type DocxSourceAnchor =
+  | {
+      kind: "paragraph";
+      bodyIndex: number;
+      paragraphIndex: number;
+      startOffset: number;
+      endOffset: number;
+    }
+  | {
+      kind: "table_cell";
+      tableIndex: number;
+      rowIndex: number;
+      cellIndex: number;
+      paragraphIndex?: number;
+      startOffset?: number;
+      endOffset?: number;
+    };
+
+export type DocumentFragmentKind =
+  | "heading"
+  | "subheading"
+  | "numbered_clause"
+  | "bullet_item"
+  | "table_cell"
+  | "mandatory_candidate"
+  | "paragraph"
+  | "metadata";
+
+export interface DocumentFragment {
+  fragmentId: string;
+  kind: DocumentFragmentKind;
+  exactText: string;
+  numberingLabel?: string;
+  headingPath: string[];
+  tableRef?: { tableIndex: number; rowIndex: number; cellIndex: number };
+  sourceAnchor: DocxSourceAnchor;
+  revisionContent?: boolean;
+  languageHints?: string[];
+}
+
+export interface DocumentSourceSnapshot {
+  kind: "docx";
+  fileName: string;
+  contentHash: string;
+  parserVersion: string;
+  language?: string;
+  metadata: {
+    title?: string;
+    creator?: string;
+    subject?: string;
+    description?: string;
+    lastModifiedBy?: string;
+    created?: string;
+    modified?: string;
+  };
+  fragments: DocumentFragment[];
+  unsupportedContent: Array<{ kind: string; count: number; message: string }>;
+  trackChanges: {
+    present: boolean;
+    insertedRuns: number;
+    deletedRuns: number;
+    comments: number;
+    warning?: string;
+  };
+  fragmentRequirementMap: Array<{
+    requirementId: string;
+    fragmentIds: string[];
+    textRanges: Array<{
+      fragmentId: string;
+      startOffset: number;
+      endOffset: number;
+      exactText: string;
+    }>;
+  }>;
 }
 
 export interface RequirementSource {
@@ -140,4 +235,5 @@ export interface SpecificationPackage {
   name: string;
   revision: string;
   requirements: Requirement[];
+  documentSource?: DocumentSourceSnapshot;
 }
