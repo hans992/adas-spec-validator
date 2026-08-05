@@ -9,6 +9,7 @@ import { ValidationReport, type ValidationReview } from "@/components/Validation
 import type { NormalizedModel, Requirement, SpecificationPackage } from "@/domain/types";
 import { compareValidationSnapshots, type ValidationComparison, type ValidationSnapshot } from "@/domain/validationComparison";
 import { compareSpecificationRequirements, type RequirementChange } from "@/domain/specificationComparison";
+import { authenticatedBrowserApi } from "@/persistence/browserApi";
 import {
   clearBrowserSession,
   captureRecoverySession,
@@ -27,8 +28,9 @@ type Invitation = { id: string; project_id: string; email: string; role: "viewer
 type Member = { user_id: string; role: "viewer" | "editor"; created_at: string };
 type Snapshot = { model_name: string; normalized_model: NormalizedModel; requirements: Requirement[] };
 type StoredSpecification = SpecificationPackage & { id: string; created_by: string; created_at: string };
+export type ProjectTarget = { projectId: string; canEdit: boolean; projectName: string };
 
-export function ProjectWorkspace({ model, requirements, modelName, onOpen, specificationName, specificationRevision, onOpenSpecification }: {
+export function ProjectWorkspace({ model, requirements, modelName, onOpen, specificationName, specificationRevision, onOpenSpecification, onProjectTargetChange, specificationRefreshKey = 0 }: {
   model: NormalizedModel;
   requirements: Requirement[];
   modelName: string;
@@ -36,6 +38,8 @@ export function ProjectWorkspace({ model, requirements, modelName, onOpen, speci
   specificationName: string;
   specificationRevision: string;
   onOpenSpecification: (specification: SpecificationPackage) => void;
+  onProjectTargetChange?: (target: ProjectTarget | null) => void;
+  specificationRefreshKey?: number;
 }) {
   const [session, setSession] = useState<BrowserSession | null>(null);
   const [email, setEmail] = useState("");
@@ -70,23 +74,7 @@ export function ProjectWorkspace({ model, requirements, modelName, onOpen, speci
   }, []);
 
   const api = useCallback(async (path: string, init: RequestInit = {}) => {
-    const activeSession = await refreshBrowserSession(session);
-    if (!activeSession) { setSession(null); throw new Error("Your session expired. Please sign in again."); }
-    if (activeSession.accessToken !== session?.accessToken) setSession(activeSession);
-    const request = (accessToken: string) => fetch(path, {
-      ...init,
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}`, ...(init.headers ?? {}) }
-    });
-    let response = await request(activeSession.accessToken);
-    if (response.status === 401) {
-      const refreshed = await refreshBrowserSession({ ...activeSession, expiresAt: 0 });
-      if (!refreshed) { setSession(null); throw new Error("Your session expired. Please sign in again."); }
-      setSession(refreshed);
-      response = await request(refreshed.accessToken);
-    }
-    const payload = await response.json();
-    if (!response.ok) throw new Error(payload.error ?? "The request failed.");
-    return payload;
+    return authenticatedBrowserApi<any>(path, init, session, setSession);
   }, [session]);
 
   const loadProjects = useCallback(async () => {
@@ -124,9 +112,15 @@ export function ProjectWorkspace({ model, requirements, modelName, onOpen, speci
   useEffect(() => { void loadProjects().catch((error: Error) => setMessage(error.message)); }, [loadProjects]);
   useEffect(() => { void loadInvitations().catch((error: Error) => setMessage(error.message)); }, [loadInvitations]);
   useEffect(() => { void loadValidations(projectId).catch((error: Error) => setMessage(error.message)); }, [loadValidations, projectId]);
-  useEffect(() => { void loadSpecifications(projectId).catch((error: Error) => setMessage(error.message)); }, [loadSpecifications, projectId]);
+  useEffect(() => { void loadSpecifications(projectId).catch((error: Error) => setMessage(error.message)); }, [loadSpecifications, projectId, specificationRefreshKey]);
   useEffect(() => { void loadMembers(projectId).catch((error: Error) => setMessage(error.message)); }, [loadMembers, projectId]);
   useEffect(() => { setSpecificationDraftName(specificationName); setSpecificationDraftRevision(specificationRevision); }, [specificationName, specificationRevision]);
+  useEffect(() => {
+    const project = projects.find((item) => item.id === projectId);
+    onProjectTargetChange?.(session && project
+      ? { projectId, projectName: project.name, canEdit: project.access_role !== "viewer" }
+      : null);
+  }, [onProjectTargetChange, projectId, projects, session]);
 
   async function run(action: () => Promise<void>) {
     setBusy(true); setMessage("");

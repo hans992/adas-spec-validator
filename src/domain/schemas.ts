@@ -7,6 +7,22 @@ const requirementSourceSchema = z.object({
   section: z.string().trim().min(1).max(200),
   revision: z.string().trim().min(1).max(100).optional()
 }).strict();
+const quantityTypeSchema = z.enum(["length", "area", "volume", "count", "percentage", "angle", "untyped"]);
+const requirementMetadataShape = {
+  description: z.string().trim().max(4000).optional(),
+  discipline: z.string().trim().max(100).optional(),
+  elementType: z.string().trim().max(100).optional(),
+  quantityType: quantityTypeSchema.optional(),
+  unit: z.string().trim().max(30).optional(),
+  notes: z.string().trim().max(4000).optional(),
+  derivedFields: z.array(z.string().trim().min(1).max(100)).max(20).optional(),
+  automationStatus: z.enum([
+    "valid_requirement",
+    "informational",
+    "requires_rule_configuration",
+    "ready_for_validation"
+  ]).optional()
+};
 
 const levelSchema = z.object({
   id: z.string().min(1),
@@ -88,6 +104,7 @@ export const normalizedModelSchema = z.object({
 });
 
 const minimumRoomAreaRequirementSchema = z.object({
+  ...requirementMetadataShape,
   id: z.string().min(1),
   title: z.string().min(1),
   type: z.literal("minimum_room_area"),
@@ -96,9 +113,10 @@ const minimumRoomAreaRequirementSchema = z.object({
   roomType: roomTypeSchema,
   minAreaSqm: z.number().positive(),
   maxAreaSqm: z.number().positive().optional()
-});
+}).strict();
 
 const minimumDoorWidthRequirementSchema = z.object({
+  ...requirementMetadataShape,
   id: z.string().min(1),
   title: z.string().min(1),
   type: z.literal("minimum_door_width_for_room_type"),
@@ -108,15 +126,16 @@ const minimumDoorWidthRequirementSchema = z.object({
   minDoorWidthM: z.number().positive(),
   maxDoorWidthM: z.number().positive().optional(),
   quantifier: z.enum(["any", "all"]).optional()
-});
+}).strict();
 
 const roomHasConnectedDoorRequirementSchema = z.object({
+  ...requirementMetadataShape,
   id: z.string().min(1),
   title: z.string().min(1),
   type: z.literal("room_has_connected_door"),
   severity: validationSeveritySchema,
   source: requirementSourceSchema.optional()
-});
+}).strict();
 
 const roomAreaConditionSchema = z.object({
   type: z.literal("room_area_range"),
@@ -132,6 +151,7 @@ const doorWidthConditionSchema = z.object({
 });
 
 const compositeRoomRuleSchema = z.object({
+  ...requirementMetadataShape,
   id: z.string().min(1),
   title: z.string().min(1),
   type: z.literal("composite_room_rule"),
@@ -143,14 +163,41 @@ const compositeRoomRuleSchema = z.object({
     .array(z.discriminatedUnion("type", [roomAreaConditionSchema, doorWidthConditionSchema]))
     .min(2)
     .max(10)
-});
+}).strict();
+
+const textualRequirementSchema = z.object({
+  ...requirementMetadataShape,
+  id: z.string().min(1),
+  title: z.string().min(1),
+  type: z.literal("textual_requirement"),
+  severity: validationSeveritySchema,
+  source: requirementSourceSchema.optional(),
+  automationStatus: z.enum(["valid_requirement", "informational", "requires_rule_configuration"])
+}).strict();
 
 export const requirementSchema = z.discriminatedUnion("type", [
   minimumRoomAreaRequirementSchema,
   minimumDoorWidthRequirementSchema,
   roomHasConnectedDoorRequirementSchema,
-  compositeRoomRuleSchema
+  compositeRoomRuleSchema,
+  textualRequirementSchema
 ]).superRefine((requirement, context) => {
+  if (requirement.type === "minimum_room_area") {
+    if (requirement.quantityType !== undefined && requirement.quantityType !== "area") {
+      context.addIssue({ code: "custom", path: ["quantityType"], message: "Room area rules require quantityType 'area'" });
+    }
+    if (requirement.unit !== undefined && !["m²", "m2", "sqm"].includes(requirement.unit.toLowerCase())) {
+      context.addIssue({ code: "custom", path: ["unit"], message: "Room area rules require an area unit" });
+    }
+  }
+  if (requirement.type === "minimum_door_width_for_room_type") {
+    if (requirement.quantityType !== undefined && requirement.quantityType !== "length") {
+      context.addIssue({ code: "custom", path: ["quantityType"], message: "Door width rules require quantityType 'length'" });
+    }
+    if (requirement.unit !== undefined && !["mm", "cm", "m"].includes(requirement.unit.toLowerCase())) {
+      context.addIssue({ code: "custom", path: ["unit"], message: "Door width rules require a length unit" });
+    }
+  }
   if (
     requirement.type === "minimum_room_area" &&
     requirement.maxAreaSqm !== undefined &&
@@ -192,7 +239,7 @@ export const requirementSchema = z.discriminatedUnion("type", [
   }
 });
 
-export const requirementsSchema = z.array(requirementSchema).min(1).max(100).superRefine((requirements, context) => {
+export const requirementsSchema = z.array(requirementSchema).min(1).max(1000).superRefine((requirements, context) => {
   const seen = new Set<string>();
   requirements.forEach((requirement, index) => {
     if (seen.has(requirement.id)) {

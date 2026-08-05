@@ -85,7 +85,7 @@ Composite rules target one room type and produce one result per matching room. E
 
 ### Versioned specification packages
 
-The requirements upload accepts the original JSON array for backwards compatibility and a traceable package with a specification name, revision, and up to 100 uniquely identified requirements:
+The requirements upload accepts the original JSON array for backwards compatibility and a traceable package with a specification name, revision, and up to 1,000 uniquely identified requirements:
 
 ```json
 {
@@ -112,6 +112,16 @@ The requirements upload accepts the original JSON array for backwards compatibil
 Duplicate requirement IDs are rejected before validation. Source references remain attached to the requirement through server revalidation and persisted snapshots, and are shown in element findings, Markdown exports, and printable reports.
 
 The workspace also accepts CSV specifications with one requirement per row. Required columns are `id`, `title`, `type`, and `severity`. Optional package columns are `specification_name` and `specification_revision`; traceability uses `source_document`, `source_section`, and `source_revision`. Rule-specific values use snake-case columns such as `room_type`, `min_area_sqm`, `max_area_sqm`, `min_door_width_m`, `max_door_width_m`, and `quantifier`. Composite rule conditions can be supplied as JSON in `conditions_json`. Package metadata must be consistent across rows, and the imported result passes the same schema and duplicate-ID validation as JSON uploads.
+
+### Reviewed XLSX import and export
+
+The `.xlsx` workflow lists visible and hidden sheets, detects a likely header row, proposes alias-aware column mappings with `high`, `medium`, `low`, or `unmapped` confidence, and requires explicit acceptance of every uncertain mapping. The paginated preview supports cell edits, row selection, batch edits for discipline/severity/unit, issue filters, and justified exclusion of any row. Excluded rows remain in the import summary. Textual clauses can be preserved as valid, informational, or requiring rule configuration without pretending they are executable deterministic rules.
+
+Length values support `mm`, `cm`, and `m`; area values support `m²`. Every value also carries a quantity type so incompatible dimensions are rejected instead of silently converted. Decimal comma and decimal point are accepted. Formula cells are never executed: cached values are shown as potentially stale and require review, while formulas without cached results block confirmation.
+
+XLSX processing is bounded to 10 MB compressed, 50 MB expanded, 500 ZIP entries, 20 sheets, 5,000 rows per sheet, and 100,000 populated cells, with an eight-second parser timeout and ZIP compression-ratio protection. MIME type and ZIP magic bytes are verified; `.xls`, `.xlsm`, macros, and external links are rejected. Hidden sheets are available for deliberate selection but are never auto-selected when a visible sheet exists.
+
+Confirmation validates the complete package first. For an editable active project, one POST creates the immutable revision and only a successful `201` activates it in the workspace; `403`, `409`, or any other failure leaves the previous draft unchanged. Without an active project, confirmation creates a clearly marked session-only draft that is lost on refresh. Active packages can be exported to canonical XLSX and re-imported without losing requirement data.
 
 Authenticated project participants can load saved specification revisions from the project library. Owners and editors can save the active package under a name and revision; viewers have read-only access. A `(project, name, revision)` identity is immutable and cannot be silently overwritten, while the server validates the complete package before persistence. This keeps reusable authoring inputs separate from the immutable requirement snapshot stored with every validation run.
 

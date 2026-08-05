@@ -28,8 +28,9 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { BimFloorPlan } from "@/components/BimFloorPlan";
 import { BimInspector } from "@/components/BimInspector";
 import { RuleBuilder } from "@/components/RuleBuilder";
-import { ProjectWorkspace } from "@/components/ProjectWorkspace";
+import { ProjectWorkspace, type ProjectTarget } from "@/components/ProjectWorkspace";
 import { RequirementEditor } from "@/components/RequirementEditor";
+import { XlsxImportWizard } from "@/components/XlsxImportWizard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,7 +46,9 @@ import type { UploadParseResult } from "@/domain/uploadHelpers";
 import { validateWithDeterministicRules } from "@/domain/validationPipeline";
 import { calculateComplianceMetrics } from "@/domain/complianceMetrics";
 import type { IfcParseDiagnostics } from "@/domain/ifcParser";
+import { exportSpecificationXlsx } from "@/domain/specificationXlsx";
 import type { NormalizedModel, Requirement, SpecificationPackage } from "@/domain/types";
+import { authenticatedBrowserApi } from "@/persistence/browserApi";
 
 type DataSourceStatus = "sample" | "uploaded";
 
@@ -63,6 +66,14 @@ export default function Home() {
   const [specificationRevision, setSpecificationRevision] = useState("Demo");
   const [isParsingIfc, setIsParsingIfc] = useState(false);
   const [ifcDiagnostics, setIfcDiagnostics] = useState<IfcParseDiagnostics | null>(null);
+  const [xlsxFile, setXlsxFile] = useState<File | null>(null);
+  const [showXlsxImporter, setShowXlsxImporter] = useState(false);
+  const [projectTarget, setProjectTarget] = useState<ProjectTarget | null>(null);
+  const [specificationRefreshKey, setSpecificationRefreshKey] = useState(0);
+  const [importSummary, setImportSummary] = useState<{
+    message: string;
+    excludedRows: Array<{ sourceRow: number; reason: string }>;
+  } | null>(null);
 
   // Interactive Selection States
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -186,6 +197,12 @@ export default function Home() {
   }, [handleDeselect]);
 
   const handleRequirementsFile = useCallback(async (file: File) => {
+    if (file.name.toLowerCase().endsWith(".xlsx")) {
+      setXlsxFile(file);
+      setShowXlsxImporter(true);
+      setRequirementsError("");
+      return;
+    }
     const rawText = await file.text();
     let validationResult: UploadParseResult<SpecificationPackage>;
     if (file.name.toLowerCase().endsWith(".csv")) {
@@ -229,7 +246,11 @@ export default function Home() {
   });
 
   const requirementsDropzone = useDropzone({
-    accept: { "application/json": [".json"], "text/csv": [".csv"] },
+    accept: {
+      "application/json": [".json"],
+      "text/csv": [".csv"],
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"]
+    },
     maxFiles: 1,
     multiple: false,
     onDrop: (acceptedFiles) => {
@@ -239,6 +260,48 @@ export default function Home() {
       }
     }
   });
+
+  async function confirmXlsxImport(
+    specification: SpecificationPackage,
+    meta: { fileName: string; includedRows: number; excludedRows: Array<{ sourceRow: number; reason: string }> }
+  ) {
+    if (projectTarget && !projectTarget.canEdit) throw new Error("Viewers cannot create specification revisions.");
+    if (projectTarget) {
+      await authenticatedBrowserApi(`/api/projects/${projectTarget.projectId}/specifications`, {
+        method: "POST",
+        body: JSON.stringify(specification)
+      });
+      setSpecificationRefreshKey((current) => current + 1);
+    }
+    setRequirementsData(specification.requirements);
+    setRequirementsSource("uploaded");
+    setRequirementsFilename(meta.fileName);
+    setSpecificationName(specification.name);
+    setSpecificationRevision(specification.revision);
+    setRequirementsError("");
+    setImportSummary({
+      message: `${meta.includedRows} requirements confirmed; ${meta.excludedRows.length} rows excluded` +
+        (projectTarget ? ` and revision saved to ${projectTarget.projectName}.` : ". Session-only draft: refresh will discard it."),
+      excludedRows: meta.excludedRows
+    });
+    setShowXlsxImporter(false);
+    setXlsxFile(null);
+  }
+
+  async function exportActiveSpecification() {
+    const bytes = await exportSpecificationXlsx({
+      name: specificationName,
+      revision: specificationRevision,
+      requirements
+    });
+    const blob = new Blob([Uint8Array.from(bytes).buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const href = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = href;
+    anchor.download = `${specificationName.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") || "specification"}-${specificationRevision}.xlsx`;
+    anchor.click();
+    URL.revokeObjectURL(href);
+  }
 
   function resetToSampleData() {
     setModelData(sampleModelData);
@@ -408,6 +471,14 @@ ${res.evidence
 
             <div className="flex items-center gap-2.5 self-start md:self-auto">
               <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void exportActiveSpecification()}
+                className="gap-1.5 font-semibold shadow-sm h-9"
+              >
+                <FileDown className="h-4 w-4" /> Export XLSX
+              </Button>
+              <Button
                 data-testid="export-report"
                 variant="outline"
                 size="sm"
@@ -428,6 +499,17 @@ ${res.evidence
           </div>
         </div>
 
+        {showXlsxImporter && <section id="xlsx-import"><XlsxImportWizard
+          initialFile={xlsxFile}
+          onConfirm={confirmXlsxImport}
+          onClose={() => { setShowXlsxImporter(false); setXlsxFile(null); }}
+        /></section>}
+
+        {importSummary && <div className="rounded border border-sky-200 bg-sky-50 p-3 text-xs text-sky-900">
+          <p>{importSummary.message}</p>
+          {importSummary.excludedRows.length > 0 && <details className="mt-2"><summary>Excluded-row audit</summary><ul className="mt-1 list-disc pl-5">{importSummary.excludedRows.map((row) => <li key={row.sourceRow}>Row {row.sourceRow}: {row.reason}</li>)}</ul></details>}
+        </div>}
+
         <section id="project"><ProjectWorkspace
           model={model}
           requirements={requirements}
@@ -436,6 +518,8 @@ ${res.evidence
           specificationRevision={specificationRevision}
           onOpenSpecification={openSavedSpecification}
           onOpen={openSavedValidation}
+          onProjectTargetChange={setProjectTarget}
+          specificationRefreshKey={specificationRefreshKey}
         /></section>
 
         <section id="requirements"><RequirementEditor requirements={requirementsData} onChange={handleRequirementsChange} /></section>
@@ -621,7 +705,7 @@ ${res.evidence
                       <FileJson className="mt-0.5 h-4 w-4 text-slate-500 flex-shrink-0" />
                       <div className="space-y-1">
                         <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">Upload Specification</p>
-                        <p className="text-[10px] text-slate-500">Import a traceable JSON package or one-requirement-per-row CSV.</p>
+                        <p className="text-[10px] text-slate-500">Import JSON/CSV directly or open the reviewed, atomic XLSX workflow.</p>
                       </div>
                     </div>
                     {requirementsFilename && (
