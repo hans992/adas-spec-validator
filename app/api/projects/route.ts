@@ -14,7 +14,7 @@ export async function GET(request: Request) {
     const userId = await authenticatedUserId(token);
     const projects = await supabaseRequest<Array<{ id: string; owner_id: string } & Record<string, unknown>>>(
       token,
-      "projects?select=id,owner_id,name,description,created_at,updated_at&order=updated_at.desc"
+      "projects?select=id,owner_id,name,description,baseline_validation_id,release_policy,created_at,updated_at&order=updated_at.desc"
     );
     const memberships = await supabaseRequest<Array<{ project_id: string; role: "viewer" | "editor" }>>(
       token, `project_members?user_id=eq.${encodeURIComponent(userId)}&select=project_id,role`

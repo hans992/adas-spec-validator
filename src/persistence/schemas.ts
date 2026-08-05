@@ -31,8 +31,27 @@ export const projectMemberRoleSchema = z.object({
   role: z.enum(["viewer", "editor"])
 }).strict();
 
+export const releasePolicySchema = z.object({
+  blockOnNewCritical: z.boolean(),
+  blockOnDecreasedCoverage: z.boolean(),
+  warnOnNewUnknown: z.boolean(),
+  allowWaivedCritical: z.boolean(),
+  maxHighFindings: z.number().int().min(0).nullable(),
+  maxMediumFindings: z.number().int().min(0).nullable()
+}).strict();
+
+export const updateProjectSettingsSchema = z.object({
+  baselineValidationId: z.string().uuid().nullable().optional(),
+  releasePolicy: releasePolicySchema.optional()
+}).strict().refine(
+  (value) => value.baselineValidationId !== undefined || value.releasePolicy !== undefined,
+  { message: "Provide baselineValidationId and/or releasePolicy." }
+);
+
 export type CreateProjectInput = z.infer<typeof createProjectSchema>;
 export type SaveValidationInput = z.infer<typeof saveValidationSchema>;
 export type SaveSpecificationPackageInput = z.infer<typeof saveSpecificationPackageSchema>;
 export type ReviewDecisionInput = z.infer<typeof reviewDecisionSchema>;
 export type ProjectInvitationInput = z.infer<typeof projectInvitationSchema>;
+export type UpdateProjectSettingsInput = z.infer<typeof updateProjectSettingsSchema>;
+export type ReleasePolicyInput = z.infer<typeof releasePolicySchema>;

@@ -20,6 +20,7 @@ This is not a generic BIM chatbot and the LLM is never the source of truth. Rule
 - Unit/API tests plus a Chromium E2E test covering IFC upload through report export
 - Authenticated project and validation-history API backed by Supabase Row Level Security
 - Version-to-version validation comparison with requirement and model deltas
+- Baseline validation runs with deterministic regression gates and per-project release policy
 - Per-requirement review decisions and audit notes on saved validation runs
 - Stable requirement IDs and document/section/revision traceability in findings and reports
 - Project specification library with immutable, reusable requirement revisions
@@ -240,9 +241,35 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
 
 Provider priority is Gemini, then OpenAI, then deterministic fallback.
 
-Apply all files in `supabase/migrations` in filename order before using persistence, including `202608040003_specification_library.sql`. The project APIs accept a Supabase access token through `Authorization: Bearer <token>`. Validation snapshots are never accepted as client-authored results: the server validates the submitted model and requirements, reruns the deterministic engine, calculates metrics, and only then writes the snapshot. RLS and composite foreign keys enforce project access; `created_by` and `updated_by` preserve the acting user without changing the project owner identity.
+Apply all files in `supabase/migrations` in filename order before using persistence, including `202608040003_specification_library.sql` and `202608050002_baseline_and_release_policy.sql`. The project APIs accept a Supabase access token through `Authorization: Bearer <token>`. Validation snapshots are never accepted as client-authored results: the server validates the submitted model and requirements, reruns the deterministic engine, calculates metrics, and only then writes the snapshot. RLS and composite foreign keys enforce project access; `created_by` and `updated_by` preserve the acting user without changing the project owner identity.
 
-The browser workspace supports email/password registration, sign-in, password recovery, automatic access-token refresh, comparison of two saved runs from the same project, and an A4 print/PDF report for each saved run. The report contains project/run identity, pass rate, coverage, model inventory, requirement outcomes, affected elements, stored evidence, and persisted review decisions (`open`, `acknowledged`, `resolved`, or `waived`) with audit notes. It is rendered only after the ownership-protected snapshot endpoint returns the server-generated results. Comparisons are calculated from the stored requirement snapshots and server-generated results, and classify resolved, regressed, changed, unchanged, added, and removed requirements. Add the application's production origin and local development origin to the Supabase Auth redirect URL allowlist so recovery links can return to the workspace. Whether a newly registered account receives an immediate session or must confirm its email follows the Supabase project's Auth settings.
+The browser workspace supports email/password registration, sign-in, password recovery, automatic access-token refresh, comparison of two saved runs from the same project, baseline regression against a release policy, and an A4 print/PDF report for each saved run. The report contains project/run identity, pass rate, coverage, model inventory, requirement outcomes, affected elements, stored evidence, and persisted review decisions (`open`, `acknowledged`, `resolved`, or `waived`) with audit notes. It is rendered only after the ownership-protected snapshot endpoint returns the server-generated results. Comparisons are calculated from the stored requirement snapshots and server-generated results, and classify resolved, regressed, changed, unchanged, added, and removed requirements.
+
+### Baseline and regression validation
+
+Each project can mark exactly one saved validation run as its **baseline**. Any later candidate run can be compared to that baseline through `GET /api/projects/:projectId/regression?candidateId=…` or the workspace **Compare to baseline** action. The report is computed only from stored snapshots, candidate reviews, and the project's release policy — never from an AI model. Identical inputs always produce the same gate status.
+
+Finding deltas (stable key = requirement + rule + sorted affected element IDs):
+
+- **new** — present only on the candidate
+- **resolved** — problem on the baseline, gone or non-problem on the candidate
+- **reopened** — non-problem on the baseline, fail on the candidate
+- **changed** — same identity with a different status, severity, or summary
+
+The report also surfaces added/removed/changed requirements, specification package deltas, and model inventory deltas (rooms, doors, levels).
+
+Per-project **release policy** (owner-editable) evaluates to `pass`, `warn`, or `block`:
+
+| Policy rule | Default | Effect |
+|---|---|---|
+| Block on new critical finding | on | Blocks when a critical fail is new or reopened vs baseline |
+| Block on decreased coverage | on | Blocks when evaluation coverage drops |
+| Warn on new unknown results | on | Warns (does not block) on new unknown findings |
+| Allow waived critical findings | off | When off, waived critical fails still block |
+| Max high (critical) findings | unlimited | Blocks when candidate critical fails exceed the cap |
+| Max medium (warning) findings | unlimited | Blocks when candidate warning fails exceed the cap |
+
+Add the application's production origin and local development origin to the Supabase Auth redirect URL allowlist so recovery links can return to the workspace. Whether a newly registered account receives an immediate session or must confirm its email follows the Supabase project's Auth settings.
 
 ## Run locally
 
@@ -302,7 +329,7 @@ See [`csharp-extractor-prototype/README.md`](csharp-extractor-prototype/README.m
 - Room-type inference is heuristic and intentionally leaves uncertain classifications unknown.
 - Composite rules currently target one room type and support room-area and connected-door-width conditions only; arbitrary nesting, cross-room aggregation, and additional BIM element types are not yet supported.
 - Rate limiting is in-memory and therefore instance-local; production deployment should use a shared store.
-- Browser email/password registration, sign-in, recovery, token refresh, project creation, validation history, save/open controls, reusable specification revisions, run comparison, printable reports, finding reviews, and viewer/editor team invitations are implemented. OAuth/SSO and multi-factor authentication are not yet implemented.
+- Browser email/password registration, sign-in, recovery, token refresh, project creation, validation history, save/open controls, reusable specification revisions, run comparison, baseline regression gates, printable reports, finding reviews, and viewer/editor team invitations are implemented. OAuth/SSO and multi-factor authentication are not yet implemented.
 - Persisted snapshots currently store normalized facts, requirements, evidence, and metrics; raw IFC object storage and model-version diffs are not yet implemented.
 - External AI availability and output quality remain provider-dependent; invalid responses fall back to deterministic explanations.
 
