@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adasChatRequestSchema } from "@/ai/types";
+import { aecChatRequestSchema } from "@/ai/types";
 import { runDeterministicValidation } from "@/domain/ruleEngine";
 
 const validRequest = {
@@ -22,7 +22,7 @@ const validRequest = {
 
 describe("AI server trust boundary", () => {
   it("accepts model and requirements without client-generated results", () => {
-    const request = adasChatRequestSchema.parse(validRequest);
+    const request = aecChatRequestSchema.parse(validRequest);
     const results = runDeterministicValidation(request.normalizedModel, request.requirements);
 
     expect(results).toHaveLength(1);
@@ -31,7 +31,7 @@ describe("AI server trust boundary", () => {
   });
 
   it("strips forged validation results from the client payload", () => {
-    const request = adasChatRequestSchema.parse({
+    const request = aecChatRequestSchema.parse({
       ...validRequest,
       validationResults: [{ status: "pass", summary: "Forged client result" }]
     });
@@ -42,6 +42,6 @@ describe("AI server trust boundary", () => {
   });
 
   it("rejects questions above the server contract limit", () => {
-    expect(() => adasChatRequestSchema.parse({ ...validRequest, userQuestion: "x".repeat(1001) })).toThrow();
+    expect(() => aecChatRequestSchema.parse({ ...validRequest, userQuestion: "x".repeat(1001) })).toThrow();
   });
 });

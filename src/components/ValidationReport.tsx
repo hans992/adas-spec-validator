@@ -17,7 +17,7 @@ export function ValidationReport({ projectName, snapshot, reviews, canEdit = tru
     <article className="validation-report mx-auto max-w-5xl bg-white p-8 text-slate-950 shadow-2xl print:max-w-none print:p-0 print:shadow-none">
       <div className="report-controls mb-6 flex justify-end gap-2"><Button variant="outline" onClick={onClose}><X className="mr-2 h-4 w-4" /> Close</Button><Button onClick={() => window.print()}><Printer className="mr-2 h-4 w-4" /> Print / Save PDF</Button></div>
       <header className="border-b-2 border-slate-900 pb-6">
-        <p className="text-xs font-bold uppercase tracking-[0.24em] text-indigo-700">ADAS Spec Validator</p><h1 className="mt-2 text-3xl font-bold">Validation report</h1>
+        <p className="text-xs font-bold uppercase tracking-[0.24em] text-indigo-700">AEC Spec Validator</p><h1 className="mt-2 text-3xl font-bold">Validation report</h1>
         <div className="mt-5 grid gap-2 text-sm sm:grid-cols-2"><p><b>Project:</b> {projectName}</p><p><b>Model:</b> {snapshot.model_name}</p><p><b>Validated:</b> {new Date(snapshot.created_at).toLocaleString()}</p><p className="break-all"><b>Run ID:</b> {snapshot.id}</p></div>
       </header>
       <section className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4"><Metric label="Pass rate" value={metrics.passRate === null ? "—" : `${metrics.passRate}%`} /><Metric label="Coverage" value={metrics.coverage === null ? "—" : `${metrics.coverage}%`} /><Metric label="Violations" value={`${metrics.violatedRequirements}`} danger={metrics.violatedRequirements > 0} /><Metric label="Critical failures" value={`${metrics.criticalFailures}`} danger={metrics.criticalFailures > 0} /></section>

@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-import { AdasChatPanel } from "@/components/AdasChatPanel";
+import { AecChatPanel } from "@/components/AecChatPanel";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { BimFloorPlan } from "@/components/BimFloorPlan";
 import { BimInspector } from "@/components/BimInspector";
@@ -285,7 +285,7 @@ export default function Home() {
 
   // Export Compliance Report Downloader
   function exportComplianceReport() {
-    const reportMd = `# ADAS Spec Validator - Building Compliance Report
+    const reportMd = `# AEC Spec Validator - Building Compliance Report
 Generated at: ${new Date().toLocaleString()}
 Requirement Pass Rate: ${passRateDisplay} (${metrics.compliantRequirements} Compliant / ${metrics.violatedRequirements} Violated among determined requirements)
 Evaluation Coverage: ${coverageDisplay} (${metrics.determinedRequirements} Determined / ${metrics.applicableRequirements} Applicable)
@@ -332,7 +332,7 @@ ${res.evidence
   .join("\n")}
 
 ---
-*Report exported from ADAS Spec Validator - Developed under Evidence-Constrained Architecture Standards.*
+*Report exported from AEC Spec Validator - Developed under Evidence-Constrained Architecture Standards.*
 `;
 
     const blob = new Blob([reportMd], { type: "text/markdown" });
@@ -345,12 +345,12 @@ ${res.evidence
   }
 
   return (
-    <main className="workspace-app min-h-screen text-[var(--adas-ink)] transition-colors duration-200">
+    <main className="workspace-app min-h-screen text-[var(--aec-ink)] transition-colors duration-200">
       <div className="workspace-shell">
         <aside className="workspace-sidebar">
-          <Link href="/" className="workspace-brand" aria-label="ADAS home">
+          <Link href="/" className="workspace-brand" aria-label="AEC home">
             <span className="workspace-brand-mark"><Building2 className="h-4 w-4" /></span>
-            <span><strong>ADAS</strong><small>Spec Validator</small></span>
+            <span><strong>AEC</strong><small>Spec Validator</small></span>
           </Link>
           <div className="workspace-project-switcher">
             <span className="tech-label">Active project</span>
@@ -772,7 +772,7 @@ ${res.evidence
             </Card>
           </section>
 
-          {/* COLUMN 3: LIVE EDITOR DETAILS & ADAS AI CORE */}
+          {/* COLUMN 3: LIVE EDITOR DETAILS & AEC AI CORE */}
           <section className="space-y-6">
 
             {/* Sidebar Inspector Editor */}
@@ -790,8 +790,8 @@ ${res.evidence
               </CardContent>
             </Card>
 
-            {/* ADAS Chat Panel AI Console */}
-            <AdasChatPanel
+            {/* AEC Chat Panel AI Console */}
+            <AecChatPanel
               normalizedModel={model}
               requirements={requirements}
               onSelectElement={handleSelectElement}

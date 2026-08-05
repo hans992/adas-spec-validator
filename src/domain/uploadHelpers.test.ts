@@ -62,12 +62,12 @@ describe("upload helpers", () => {
 describe("validateUploadedSpecification", () => {
   it("accepts a versioned package and retains legacy array imports", () => {
     const requirement = {
-      id: "ADAS-001",
+      id: "AEC-001",
       title: "Rooms have doors",
       type: "room_has_connected_door",
       severity: "warning"
     };
-    const packaged = validateUploadedSpecification({ name: "ADAS Spec", revision: "C", requirements: [requirement] });
+    const packaged = validateUploadedSpecification({ name: "AEC Spec", revision: "C", requirements: [requirement] });
     const legacy = validateUploadedSpecification([requirement]);
 
     expect(packaged.success && packaged.data.revision).toBe("C");

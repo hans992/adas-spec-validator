@@ -1,6 +1,6 @@
-import type { TrustedAdasChatInput } from "@/ai/types";
+import type { TrustedAecChatInput } from "@/ai/types";
 
-function roleInstruction(selectedRole: TrustedAdasChatInput["selectedRole"]): string {
+function roleInstruction(selectedRole: TrustedAecChatInput["selectedRole"]): string {
   switch (selectedRole) {
     case "Design Engineer":
       return "Use technical and precise language. Mention requirement IDs and element IDs. Explain observed vs expected values.";
@@ -13,7 +13,7 @@ function roleInstruction(selectedRole: TrustedAdasChatInput["selectedRole"]): st
   }
 }
 
-export function buildAdasPrompt(input: TrustedAdasChatInput): string {
+export function buildAecPrompt(input: TrustedAecChatInput): string {
   const facts = JSON.stringify(input.normalizedModel, null, 2);
   const results = JSON.stringify(input.validationResults, null, 2);
 

@@ -18,13 +18,13 @@ describe("requirementSchema", () => {
 
   it("preserves a traceable source reference", () => {
     const result = requirementSchema.safeParse({
-      id: "ADAS-DOOR-0042",
+      id: "AEC-DOOR-0042",
       title: "Office doors meet the clear-width specification",
       type: "minimum_door_width_for_room_type",
       severity: "critical",
       roomType: "office",
       minDoorWidthM: 0.85,
-      source: { document: "ADAS Building Specification", section: "4.2.1", revision: "C" }
+      source: { document: "AEC Building Specification", section: "4.2.1", revision: "C" }
     });
 
     expect(result.success).toBe(true);
@@ -33,14 +33,14 @@ describe("requirementSchema", () => {
 
   it("rejects duplicate IDs across a specification package", () => {
     const requirement = {
-      id: "ADAS-001",
+      id: "AEC-001",
       title: "Every room has a connected door",
       type: "room_has_connected_door" as const,
       severity: "warning" as const
     };
     expect(requirementsSchema.safeParse([requirement, requirement]).success).toBe(false);
     expect(specificationPackageSchema.safeParse({
-      name: "ADAS Building Specification",
+      name: "AEC Building Specification",
       revision: "C",
       requirements: [requirement]
     }).success).toBe(true);
@@ -125,14 +125,14 @@ describe("specification CSV import", () => {
   it("imports traceable requirements and quoted fields", () => {
     const result = parseUploadedSpecificationCsv([
       "specification_name,specification_revision,id,title,type,severity,room_type,min_area_sqm,max_area_sqm,source_document,source_section,source_revision",
-      'ADAS Building Specification,C,ADAS-001,"Office area, usable",minimum_room_area,critical,office,12,20,Building Specification,4.2.1,C'
+      'AEC Building Specification,C,AEC-001,"Office area, usable",minimum_room_area,critical,office,12,20,Building Specification,4.2.1,C'
     ].join("\n"));
 
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.name).toBe("ADAS Building Specification");
+      expect(result.data.name).toBe("AEC Building Specification");
       expect(result.data.requirements[0]).toMatchObject({
-        id: "ADAS-001", title: "Office area, usable", minAreaSqm: 12,
+        id: "AEC-001", title: "Office area, usable", minAreaSqm: 12,
         source: { document: "Building Specification", section: "4.2.1", revision: "C" }
       });
     }

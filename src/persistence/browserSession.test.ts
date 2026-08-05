@@ -16,7 +16,7 @@ function browserMock(hash = "") {
       setItem: (key: string, value: string) => values.set(key, value),
       removeItem: (key: string) => values.delete(key)
     },
-    location: { hash, pathname: "/", search: "", origin: "https://adas.example" },
+    location: { hash, pathname: "/", search: "", origin: "https://aec.example" },
     history: { replaceState }
   });
   return { replaceState };

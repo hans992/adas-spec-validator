@@ -1,4 +1,4 @@
-# ADAS Spec Extractor Prototype (C#)
+# AEC Spec Extractor Prototype (C#)
 
 This folder is a prototype integration boundary for Autodesk-side extraction.
 
@@ -37,7 +37,7 @@ Core principle remains unchanged:
 From this folder:
 
 ```bash
-dotnet run --project Adas.SpecExtractor.csproj
+dotnet run --project Aec.SpecExtractor.csproj
 ```
 
 Expected behavior:

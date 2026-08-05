@@ -1,7 +1,7 @@
-import { ADAS_SYSTEM_PROMPT } from "@/ai/adasSystemPrompt";
-import { buildAdasPrompt } from "@/ai/buildAdasPrompt";
+import { AEC_SYSTEM_PROMPT } from "@/ai/aecSystemPrompt";
+import { buildAecPrompt } from "@/ai/buildAecPrompt";
 import { buildFallbackAnswer } from "@/ai/fallbackAnswer";
-import type { AdasChatResponse, TrustedAdasChatInput } from "@/ai/types";
+import type { AecChatResponse, TrustedAecChatInput } from "@/ai/types";
 import { parseAndVerifyProviderAnswer } from "@/ai/verifyProviderAnswer";
 
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
@@ -42,7 +42,7 @@ export function selectAiProvider(env: ProviderEnv): ProviderSelection {
   return { provider: "deterministic" };
 }
 
-export async function getAdasChatAnswer(input: TrustedAdasChatInput): Promise<AdasChatResponse> {
+export async function getAecChatAnswer(input: TrustedAecChatInput): Promise<AecChatResponse> {
   const selection = selectAiProvider({
     GOOGLE_GENERATIVE_AI_API_KEY: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
     GOOGLE_GENERATION_MODEL: process.env.GOOGLE_GENERATION_MODEL,
@@ -56,7 +56,7 @@ export async function getAdasChatAnswer(input: TrustedAdasChatInput): Promise<Ad
     };
   }
 
-  const userPrompt = buildAdasPrompt(input);
+  const userPrompt = buildAecPrompt(input);
 
   try {
     if (selection.provider === "gemini") {
@@ -72,7 +72,7 @@ export async function getAdasChatAnswer(input: TrustedAdasChatInput): Promise<Ad
           signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
           body: JSON.stringify({
             systemInstruction: {
-              parts: [{ text: ADAS_SYSTEM_PROMPT }]
+              parts: [{ text: AEC_SYSTEM_PROMPT }]
             },
             generationConfig: {
               temperature: 0.1,
@@ -132,7 +132,7 @@ export async function getAdasChatAnswer(input: TrustedAdasChatInput): Promise<Ad
         temperature: 0.1,
         response_format: { type: "json_object" },
         messages: [
-          { role: "system", content: ADAS_SYSTEM_PROMPT },
+          { role: "system", content: AEC_SYSTEM_PROMPT },
           { role: "user", content: userPrompt }
         ]
       })

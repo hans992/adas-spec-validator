@@ -1,6 +1,6 @@
-# ADAS Spec Validator
+# AEC Spec Validator
 
-ADAS Spec Validator is an evidence-first prototype for validating CAD/BIM model facts against explicit requirements. It accepts normalized model JSON or native IFC STEP files, runs a deterministic rule engine, exposes the evidence behind every result, and optionally uses Gemini or OpenAI to explain only server-verified findings.
+AEC Spec Validator is an evidence-first prototype for validating CAD/BIM model facts against explicit requirements. It accepts normalized model JSON or native IFC STEP files, runs a deterministic rule engine, exposes the evidence behind every result, and optionally uses Gemini or OpenAI to explain only server-verified findings.
 
 This is not a generic BIM chatbot and the LLM is never the source of truth. Rules validate first; AI explains second.
 
@@ -13,7 +13,7 @@ This is not a generic BIM chatbot and the LLM is never the source of truth. Rule
 - Evidence records with observed values, expected values, and affected element IDs
 - Requirement-level pass rate, evaluation coverage, unknown/N/A counts, violations, and critical failures
 - Markdown evidence report export
-- Role-aware ADAS chat with Gemini, OpenAI, or a deterministic local fallback
+- Role-aware AEC chat with Gemini, OpenAI, or a deterministic local fallback
 - Server-side revalidation of model data and requirements before any AI call
 - Structured AI responses whose requirement and element citations are verified against generated evidence
 - IFC diagnostics for units, extraction sources, containment, connectivity, and unsupported or missing data
@@ -89,18 +89,18 @@ The requirements upload accepts the original JSON array for backwards compatibil
 
 ```json
 {
-  "name": "ADAS Building Specification",
+  "name": "AEC Building Specification",
   "revision": "C",
   "requirements": [
     {
-      "id": "ADAS-DOOR-0042",
+      "id": "AEC-DOOR-0042",
       "title": "Office doors provide the specified clear width",
       "type": "minimum_door_width_for_room_type",
       "severity": "critical",
       "roomType": "office",
       "minDoorWidthM": 0.85,
       "source": {
-        "document": "ADAS Building Specification",
+        "document": "AEC Building Specification",
         "section": "4.2.1",
         "revision": "C"
       }
@@ -153,9 +153,9 @@ The diagnostics panel reports:
 
 Room classification currently uses a small English/German name heuristic for stockrooms, offices, meeting rooms, and corridors. Unrecognized spaces remain `unknown`.
 
-## Evidence-constrained ADAS chat
+## Evidence-constrained AEC chat
 
-ADAS chat works without an API key by using a deterministic fallback. If a provider is enabled, it must return structured JSON with evidence citations. The server rejects malformed output, unknown requirement IDs, invented element IDs, and citations not supported by deterministic results, then falls back safely.
+AEC chat works without an API key by using a deterministic fallback. If a provider is enabled, it must return structured JSON with evidence citations. The server rejects malformed output, unknown requirement IDs, invented element IDs, and citations not supported by deterministic results, then falls back safely.
 
 Additional API protections include:
 
@@ -232,7 +232,7 @@ The E2E test uploads a real IFC fixture, checks parser diagnostics and complianc
 If the .NET SDK is installed:
 
 ```bash
-dotnet run --project csharp-extractor-prototype/Adas.SpecExtractor.csproj
+dotnet run --project csharp-extractor-prototype/Aec.SpecExtractor.csproj
 ```
 
 See [`csharp-extractor-prototype/README.md`](csharp-extractor-prototype/README.md) for details.

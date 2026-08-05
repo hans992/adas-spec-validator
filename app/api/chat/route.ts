@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getAdasChatAnswer } from "@/ai/aiClient";
-import { adasChatRequestSchema } from "@/ai/types";
+import { getAecChatAnswer } from "@/ai/aiClient";
+import { aecChatRequestSchema } from "@/ai/types";
 import { runDeterministicValidation } from "@/domain/ruleEngine";
 import { consumeChatRateLimit } from "@/ai/chatRateLimit";
 
@@ -29,12 +29,12 @@ export async function POST(request: Request) {
     }
 
     const payload: unknown = JSON.parse(body);
-    const parsedPayload = adasChatRequestSchema.parse(payload);
+    const parsedPayload = aecChatRequestSchema.parse(payload);
     const validationResults = runDeterministicValidation(
       parsedPayload.normalizedModel,
       parsedPayload.requirements
     );
-    const result = await getAdasChatAnswer({ ...parsedPayload, validationResults });
+    const result = await getAecChatAnswer({ ...parsedPayload, validationResults });
 
     return NextResponse.json(result);
   } catch (error) {

@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { ADAS_SYSTEM_PROMPT } from "@/ai/adasSystemPrompt";
-import { buildAdasPrompt } from "@/ai/buildAdasPrompt";
+import { AEC_SYSTEM_PROMPT } from "@/ai/aecSystemPrompt";
+import { buildAecPrompt } from "@/ai/buildAecPrompt";
 import { buildFallbackAnswer } from "@/ai/fallbackAnswer";
-import type { TrustedAdasChatInput } from "@/ai/types";
+import type { TrustedAecChatInput } from "@/ai/types";
 
-const requestFixture: TrustedAdasChatInput = {
+const requestFixture: TrustedAecChatInput = {
   userQuestion: "Does room rm-stock-02 comply?",
   selectedRole: "Design Engineer",
   normalizedModel: {
@@ -51,47 +51,47 @@ const requestFixture: TrustedAdasChatInput = {
   ]
 };
 
-describe("ADAS prompt and fallback", () => {
+describe("AEC prompt and fallback", () => {
   it("includes selected role in prompt", () => {
-    const prompt = buildAdasPrompt(requestFixture);
+    const prompt = buildAecPrompt(requestFixture);
     expect(prompt).toContain("Selected role: Design Engineer");
   });
 
   it("includes anti-hallucination instruction", () => {
-    expect(ADAS_SYSTEM_PROMPT).toContain("Do not infer missing CAD/BIM data.");
-    expect(ADAS_SYSTEM_PROMPT).toContain(
+    expect(AEC_SYSTEM_PROMPT).toContain("Do not infer missing CAD/BIM data.");
+    expect(AEC_SYSTEM_PROMPT).toContain(
       '"I cannot determine that from the available model evidence."'
     );
   });
 
   it("includes validation evidence in prompt", () => {
-    const prompt = buildAdasPrompt(requestFixture);
+    const prompt = buildAecPrompt(requestFixture);
     expect(prompt).toContain("Area parameter is not available in normalized model data.");
   });
 
   it("includes concise answer instruction", () => {
-    const prompt = buildAdasPrompt(requestFixture);
+    const prompt = buildAecPrompt(requestFixture);
     expect(prompt).toContain("Be concise by default");
-    expect(ADAS_SYSTEM_PROMPT).toContain("Be concise by default");
+    expect(AEC_SYSTEM_PROMPT).toContain("Be concise by default");
   });
 
   it("instructs not to dump full model unless asked", () => {
-    const prompt = buildAdasPrompt(requestFixture);
+    const prompt = buildAecPrompt(requestFixture);
     expect(prompt).toContain("Do not dump the full model");
-    expect(ADAS_SYSTEM_PROMPT).toContain("Do not dump the full model");
+    expect(AEC_SYSTEM_PROMPT).toContain("Do not dump the full model");
   });
 
   it("includes vague-question clarification guidance", () => {
-    const prompt = buildAdasPrompt({
+    const prompt = buildAecPrompt({
       ...requestFixture,
       userQuestion: "What is what?"
     });
     expect(prompt).toContain("If the question is vague");
-    expect(ADAS_SYSTEM_PROMPT).toContain('For vague questions like "What is this?", "What is what?", or "Explain this"');
+    expect(AEC_SYSTEM_PROMPT).toContain('For vague questions like "What is this?", "What is what?", or "Explain this"');
   });
 
   it("includes element ids in prompt context", () => {
-    const prompt = buildAdasPrompt(requestFixture);
+    const prompt = buildAecPrompt(requestFixture);
     expect(prompt).toContain("rm-stock-02");
   });
 
