@@ -39,6 +39,47 @@ describe("project specification library API", () => {
     expect(body.requirements).toHaveLength(sampleRequirements.length);
   });
 
+  it("preserves extended requirement metadata in the single atomic insert", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({ id: "editor-1" }))
+      .mockResolvedValueOnce(Response.json([{ owner_id: "owner-1" }]))
+      .mockResolvedValueOnce(Response.json([{ id: "spec-1" }]));
+    const requirement = {
+      ...sampleRequirements[0],
+      description: "Measured clear area requirement",
+      discipline: "Architecture",
+      elementType: "stockroom",
+      quantityType: "area",
+      unit: "m²",
+      notes: "Imported from the issued workbook",
+      automationStatus: "ready_for_validation"
+    };
+    const response = await POST(new Request("http://localhost/specifications", {
+      method: "POST", headers, body: JSON.stringify({ name: "Terminal rules", revision: "B", requirements: [requirement] })
+    }), context);
+    expect(response.status).toBe(201);
+    const body = JSON.parse(String((fetchMock.mock.calls[2][1] as RequestInit).body));
+    expect(body.requirements[0]).toMatchObject({
+      discipline: "Architecture",
+      quantityType: "area",
+      unit: "m²",
+      automationStatus: "ready_for_validation"
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it.each([403, 409])("does not retry or partially write when Supabase returns %s", async (status) => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({ id: "viewer-1" }))
+      .mockResolvedValueOnce(Response.json([{ owner_id: "owner-1" }]))
+      .mockResolvedValueOnce(Response.json({ message: status === 409 ? "duplicate key" : "permission denied" }, { status }));
+    const response = await POST(new Request("http://localhost/specifications", {
+      method: "POST", headers, body: JSON.stringify({ name: "Terminal rules", revision: "A", requirements: sampleRequirements })
+    }), context);
+    expect(response.status).toBe(status);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
   it("rejects malformed or duplicate requirement ids before persistence", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json({ id: "user-1" }));
     const duplicate = [...sampleRequirements, { ...sampleRequirements[0] }];

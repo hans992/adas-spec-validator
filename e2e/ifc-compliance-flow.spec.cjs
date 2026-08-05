@@ -31,3 +31,23 @@ test("uploads IFC, validates it, scores it and exports evidence", async ({ page 
   expect(report).toContain("Total Access Doors Inspected: 1");
   expect(report).toContain("Affected Elements: ifc:space:3O2Fr$t4X7Zf8NOew3FLOH");
 });
+
+test("reviews and confirms a 100+ row XLSX as a session draft", async ({ page }) => {
+  await page.goto("/workspace");
+  await page.locator('input[type="file"][accept*=".xlsx"]').first().setInputFiles(
+    path.join(process.cwd(), "test/fixtures/aec-building-requirements.xlsx")
+  );
+
+  await expect(page.getByText("XLSX specification import")).toBeVisible();
+  await expect(page.getByLabel("Worksheet")).toHaveValue("Requirements");
+  await expect(page.getByLabel("Header row")).toHaveValue("3");
+  await page.getByRole("button", { name: "Build editable preview" }).click();
+
+  await expect(page.getByRole("button", { name: "Confirm 120 requirements" })).toBeVisible();
+  await page.getByRole("button", { name: /warning/i }).click();
+  await page.getByLabel("Accept warnings").check();
+  await page.getByRole("button", { name: "Confirm 120 requirements" }).click();
+
+  await expect(page.getByText(/120 requirements confirmed/)).toBeVisible();
+  await expect(page.getByText(/Session-only draft/)).toBeVisible();
+});

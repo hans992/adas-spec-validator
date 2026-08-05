@@ -1,5 +1,6 @@
 import { ZodError } from "zod";
 import { normalizedModelSchema, requirementsSchema, specificationPackageSchema } from "@/domain/schemas";
+import { finalizeImportedRows, valuesToImportRow, type CanonicalValues } from "@/domain/specificationRows";
 import type { NormalizedModel, Requirement, SpecificationPackage } from "@/domain/types";
 
 export type UploadParseResult<T> =
@@ -53,12 +54,6 @@ function parseCsvRows(rawText: string): UploadParseResult<string[][]> {
 
 const csvRequiredHeaders = ["id", "title", "type", "severity"] as const;
 
-function optionalNumber(value: string | undefined): number | undefined {
-  if (!value) return undefined;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : Number.NaN;
-}
-
 export function parseUploadedSpecificationCsv(rawText: string): UploadParseResult<SpecificationPackage> {
   const parsedRows = parseCsvRows(rawText.replace(/^\uFEFF/, ""));
   if (!parsedRows.success) return parsedRows;
@@ -86,30 +81,39 @@ export function parseUploadedSpecificationCsv(rawText: string): UploadParseResul
     return { success: false, error: `Invalid CSV: row ${incompleteSourceIndex + 2} must provide both source_document and source_section.` };
   }
 
-  const requirements = records.map((record) => {
-    const source = record.source_document && record.source_section
-      ? { document: record.source_document, section: record.source_section, ...(record.source_revision ? { revision: record.source_revision } : {}) }
-      : undefined;
-    const common = { id: record.id, title: record.title, type: record.type, severity: record.severity, ...(source ? { source } : {}) };
-    if (record.type === "minimum_room_area") {
-      return { ...common, roomType: record.room_type, minAreaSqm: optionalNumber(record.min_area_sqm), maxAreaSqm: optionalNumber(record.max_area_sqm) };
-    }
-    if (record.type === "minimum_door_width_for_room_type") {
-      return { ...common, roomType: record.room_type, minDoorWidthM: optionalNumber(record.min_door_width_m), maxDoorWidthM: optionalNumber(record.max_door_width_m), ...(record.quantifier ? { quantifier: record.quantifier } : {}) };
-    }
-    if (record.type === "composite_room_rule") {
-      let conditions: unknown = undefined;
-      try { conditions = JSON.parse(record.conditions_json || ""); } catch { /* reported by schema validation */ }
-      return { ...common, roomType: record.room_type, operator: record.operator, conditions };
-    }
-    return common;
+  const importedRows = records.map((record, index) => {
+    const values: CanonicalValues = {
+      id: record.id,
+      title: record.title,
+      description: record.description,
+      discipline: record.discipline,
+      type: record.type,
+      severity: record.severity,
+      target_type: record.room_type || record.element_type,
+      minimum: record.type === "minimum_room_area" ? record.min_area_sqm : record.min_door_width_m || record.minimum,
+      maximum: record.type === "minimum_room_area" ? record.max_area_sqm : record.max_door_width_m || record.maximum,
+      unit: record.unit,
+      quantity_type: record.quantity_type,
+      source_document: record.source_document,
+      source_section: record.source_section,
+      source_revision: record.source_revision,
+      notes: record.notes,
+      derived_fields: record.derived_fields,
+      quantifier: record.quantifier,
+      operator: record.operator,
+      conditions_json: record.conditions_json
+    };
+    const row = valuesToImportRow(index + 2, values);
+    return { ...row, reviewed: true };
   });
-
-  return validateUploadedSpecification({
-    name: [...names][0] ?? "Imported CSV requirements",
-    revision: [...revisions][0] ?? "Unspecified",
-    requirements
-  });
+  const finalized = finalizeImportedRows(
+    [...names][0] ?? "Imported CSV requirements",
+    [...revisions][0] ?? "Unspecified",
+    importedRows
+  );
+  return finalized.success
+    ? finalized
+    : { success: false, error: `Invalid CSV: ${finalized.errors[0] ?? "requirements could not be validated."}` };
 }
 
 export function validateUploadedModel(rawData: unknown): UploadParseResult<NormalizedModel> {

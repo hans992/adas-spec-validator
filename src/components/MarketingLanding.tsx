@@ -32,7 +32,7 @@ const capabilities = [
 ] as const;
 
 const workflow = [
-  [Upload, "Import specification", "Bring in requirements from JSON or CSV and retain their source reference."],
+  [Upload, "Import specification", "Bring in requirements from JSON, CSV or reviewed XLSX and retain their source reference."],
   [Braces, "Structure requirements", "Define rule type, condition, unit and tolerance with human confirmation."],
   [ScanLine, "Validate", "Check the design package against the active requirement revision."],
   [MessageSquareText, "Review findings", "Accept, waive or reject findings with a note and evidence."],
@@ -176,7 +176,7 @@ export function MarketingLanding() {
         </section>
 
         <section className="blueprint-grid">
-          <div className="mx-auto max-w-7xl px-5 py-20 lg:px-8"><div className="border border-[var(--aec-line-strong)] bg-[var(--aec-card)] p-8 md:p-12"><p className="tech-label text-[var(--aec-blue)]">Start now</p><h2 className="mt-4 max-w-3xl text-3xl font-medium tracking-tight">Bring your specification and model into one traceable validation workspace.</h2><p className="mt-4 max-w-2xl text-sm leading-6 text-[var(--aec-muted)]">The working application supports IFC and JSON model imports, plus JSON and CSV requirement packages.</p><div className="mt-8 flex flex-wrap gap-3"><Link href="/workspace" className="aec-button-primary">Open workspace <ArrowRight className="size-4"/></Link><Link href="/workspace" className="aec-button-secondary">Use sample data</Link></div></div></div>
+          <div className="mx-auto max-w-7xl px-5 py-20 lg:px-8"><div className="border border-[var(--aec-line-strong)] bg-[var(--aec-card)] p-8 md:p-12"><p className="tech-label text-[var(--aec-blue)]">Start now</p><h2 className="mt-4 max-w-3xl text-3xl font-medium tracking-tight">Bring your specification and model into one traceable validation workspace.</h2><p className="mt-4 max-w-2xl text-sm leading-6 text-[var(--aec-muted)]">The working application supports IFC and JSON model imports, plus JSON, CSV and reviewed XLSX requirement packages.</p><div className="mt-8 flex flex-wrap gap-3"><Link href="/workspace" className="aec-button-primary">Open workspace <ArrowRight className="size-4"/></Link><Link href="/workspace" className="aec-button-secondary">Use sample data</Link></div></div></div>
         </section>
       </main>
 

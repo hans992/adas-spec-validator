@@ -31,6 +31,9 @@ export function runDeterministicValidation(
       case "composite_room_rule":
         output.push(...evaluateCompositeRoomRule(model, requirement));
         break;
+      case "textual_requirement":
+        output.push(evaluateTextualRequirement(requirement));
+        break;
       default: {
         const exhaustiveCheck: never = requirement;
         throw new Error(`Unhandled requirement type: ${exhaustiveCheck}`);
@@ -39,6 +42,32 @@ export function runDeterministicValidation(
   }
 
   return output;
+}
+
+function evaluateTextualRequirement(
+  requirement: Extract<Requirement, { type: "textual_requirement" }>
+): ValidationResult {
+  const informational = requirement.automationStatus === "informational";
+  return {
+    ruleId: "TextualRequirement",
+    requirementId: requirement.id,
+    requirementTitle: requirement.title,
+    elementType: "model",
+    status: informational ? "not_applicable" : "unknown",
+    severity: requirement.severity,
+    summary: informational
+      ? "Informational requirement is preserved for traceability and is not evaluated."
+      : "Requirement is valid but needs deterministic rule configuration before it can be evaluated.",
+    affectedElementIds: [],
+    evidence: [{
+      message: informational
+        ? "The imported row was classified as informational."
+        : "No executable rule configuration is attached to this requirement.",
+      field: "requirement.automationStatus",
+      observed: requirement.automationStatus,
+      expected: "ready_for_validation"
+    }]
+  };
 }
 
 function evaluateCompositeRoomRule(

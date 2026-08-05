@@ -4,6 +4,23 @@ export type ValidationStatus = "pass" | "fail" | "unknown" | "not_applicable";
 export type ValidationSeverity = "info" | "warning" | "critical";
 export type DoorQuantifier = "any" | "all";
 export type LogicalOperator = "and" | "or";
+export type QuantityType = "length" | "area" | "volume" | "count" | "percentage" | "angle" | "untyped";
+export type RequirementAutomationStatus =
+  | "valid_requirement"
+  | "informational"
+  | "requires_rule_configuration"
+  | "ready_for_validation";
+
+export interface RequirementMetadata {
+  description?: string;
+  discipline?: string;
+  elementType?: string;
+  quantityType?: QuantityType;
+  unit?: string;
+  notes?: string;
+  derivedFields?: string[];
+  automationStatus?: RequirementAutomationStatus;
+}
 
 export interface RequirementSource {
   document: string;
@@ -53,7 +70,7 @@ export interface NormalizedModel {
 }
 
 export type Requirement =
-  | {
+  | (RequirementMetadata & {
       id: string;
       title: string;
       type: "minimum_room_area";
@@ -62,8 +79,8 @@ export type Requirement =
       roomType: RoomType;
       minAreaSqm: number;
       maxAreaSqm?: number;
-    }
-  | {
+    })
+  | (RequirementMetadata & {
       id: string;
       title: string;
       type: "minimum_door_width_for_room_type";
@@ -73,15 +90,15 @@ export type Requirement =
       minDoorWidthM: number;
       maxDoorWidthM?: number;
       quantifier?: DoorQuantifier;
-    }
-  | {
+    })
+  | (RequirementMetadata & {
       id: string;
       title: string;
       type: "room_has_connected_door";
       severity: ValidationSeverity;
       source?: RequirementSource;
-    }
-  | {
+    })
+  | (RequirementMetadata & {
       id: string;
       title: string;
       type: "composite_room_rule";
@@ -90,7 +107,15 @@ export type Requirement =
       roomType: RoomType;
       operator: LogicalOperator;
       conditions: CompositeCondition[];
-    };
+    })
+  | (RequirementMetadata & {
+      id: string;
+      title: string;
+      type: "textual_requirement";
+      severity: ValidationSeverity;
+      source?: RequirementSource;
+      automationStatus: "valid_requirement" | "informational" | "requires_rule_configuration";
+    });
 
 export interface EvidenceItem {
   message: string;
