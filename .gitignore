@@ -10,3 +10,5 @@ pnpm-debug.log*
 .DS_Store
 **/bin/
 **/obj/
+!bin/
+!bin/aec-validator.mjs

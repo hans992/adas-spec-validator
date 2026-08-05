@@ -2,13 +2,17 @@
   "name": "aec-spec-validator",
   "version": "0.1.0",
   "private": true,
+  "bin": {
+    "aec-validator": "./bin/aec-validator.mjs"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "test:e2e": "playwright test",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "aec-validator": "node ./bin/aec-validator.mjs"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.4",
