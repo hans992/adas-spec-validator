@@ -1,8 +1,8 @@
-import type { TrustedAdasChatInput } from "@/ai/types";
+import type { TrustedAecChatInput } from "@/ai/types";
 
 const EVIDENCE_GUARDRAIL = "I cannot determine that from the available model evidence.";
 
-function roleTone(role: TrustedAdasChatInput["selectedRole"]): string {
+function roleTone(role: TrustedAecChatInput["selectedRole"]): string {
   if (role === "Design Engineer") {
     return "Technical summary";
   }
@@ -12,7 +12,7 @@ function roleTone(role: TrustedAdasChatInput["selectedRole"]): string {
   return "Project status summary";
 }
 
-export function buildFallbackAnswer(input: TrustedAdasChatInput): string {
+export function buildFallbackAnswer(input: TrustedAecChatInput): string {
   const passCount = input.validationResults.filter((item) => item.status === "pass").length;
   const failCount = input.validationResults.filter((item) => item.status === "fail").length;
   const unknownCount = input.validationResults.filter((item) => item.status === "unknown").length;

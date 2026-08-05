@@ -1,4 +1,4 @@
-namespace Adas.SpecExtractor.Models;
+namespace Aec.SpecExtractor.Models;
 
 public sealed class LevelDto
 {

@@ -1,8 +1,8 @@
-import { providerAnswerSchema, type ProviderAnswer, type TrustedAdasChatInput } from "@/ai/types";
+import { providerAnswerSchema, type ProviderAnswer, type TrustedAecChatInput } from "@/ai/types";
 
 export function parseAndVerifyProviderAnswer(
   rawContent: string,
-  input: TrustedAdasChatInput
+  input: TrustedAecChatInput
 ): ProviderAnswer | null {
   let payload: unknown;
   try {

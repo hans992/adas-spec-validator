@@ -12,7 +12,7 @@ type AuthPayload = {
   user?: { email?: string };
 };
 
-const SESSION_KEY = "adas.supabase.session";
+const SESSION_KEY = "aec.supabase.session";
 const REFRESH_MARGIN_MS = 60_000;
 
 function authConfig() {

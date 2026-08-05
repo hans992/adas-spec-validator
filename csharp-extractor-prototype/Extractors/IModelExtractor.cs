@@ -1,6 +1,6 @@
-using Adas.SpecExtractor.Models;
+using Aec.SpecExtractor.Models;
 
-namespace Adas.SpecExtractor.Extractors;
+namespace Aec.SpecExtractor.Extractors;
 
 public interface IModelExtractor
 {

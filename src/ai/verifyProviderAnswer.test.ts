@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { parseAndVerifyProviderAnswer } from "@/ai/verifyProviderAnswer";
-import type { TrustedAdasChatInput } from "@/ai/types";
+import type { TrustedAecChatInput } from "@/ai/types";
 
-const input: TrustedAdasChatInput = {
+const input: TrustedAecChatInput = {
   userQuestion: "Does it comply?",
   selectedRole: "Design Engineer",
   normalizedModel: {

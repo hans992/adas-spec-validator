@@ -4,7 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
 
 export const metadata: Metadata = {
-  title: "ADAS Spec Validator",
+  title: "AEC Spec Validator",
   description: "Deterministic validation for CAD/BIM model requirements"
 };
 

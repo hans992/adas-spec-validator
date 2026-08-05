@@ -1,7 +1,7 @@
 ISO-10303-21;
 HEADER;
 FILE_DESCRIPTION(('ViewDefinition [ReferenceView]'),'2;1');
-FILE_NAME('multistorey-opening-building.ifc','2026-08-03T12:00:00',('ADAS Spec Validator'),('OpenAI'),'ADAS Spec Validator','ADAS Spec Validator','');
+FILE_NAME('multistorey-opening-building.ifc','2026-08-03T12:00:00',('AEC Spec Validator'),('OpenAI'),'AEC Spec Validator','AEC Spec Validator','');
 FILE_SCHEMA(('IFC4'));
 ENDSEC;
 DATA;

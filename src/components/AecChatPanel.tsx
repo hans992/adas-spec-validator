@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Brain, Terminal, Activity, ArrowRight, CornerDownRight } from "lucide-react";
 import type { NormalizedModel, Requirement } from "@/domain/types";
-import type { AdasRole } from "@/ai/types";
+import type { AecRole } from "@/ai/types";
 import ReactMarkdown from "react-markdown";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 const focusRing =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 focus-visible:border-indigo-400";
 
-const roleOptions: AdasRole[] = ["Design Engineer", "Stockroom Personnel", "Project Manager"];
+const roleOptions: AecRole[] = ["Design Engineer", "Stockroom Personnel", "Project Manager"];
 
 const exampleQuestions = [
   "Does the stockroom meet the current requirements?",
@@ -21,18 +21,18 @@ const exampleQuestions = [
   "What cannot be determined from the current model?"
 ];
 
-interface AdasChatPanelProps {
+interface AecChatPanelProps {
   normalizedModel: NormalizedModel;
   requirements: Requirement[];
   onSelectElement?: (id: string, type: "room" | "door") => void;
 }
 
-export function AdasChatPanel({
+export function AecChatPanel({
   normalizedModel,
   requirements,
   onSelectElement
-}: AdasChatPanelProps) {
-  const [selectedRole, setSelectedRole] = useState<AdasRole>("Design Engineer");
+}: AecChatPanelProps) {
+  const [selectedRole, setSelectedRole] = useState<AecRole>("Design Engineer");
   const [question, setQuestion] = useState<string>(exampleQuestions[0]);
   const [answer, setAnswer] = useState<string>("");
   const [mode, setMode] = useState<"fallback" | "ai" | "none">("none");
@@ -100,7 +100,7 @@ export function AdasChatPanel({
         <div className="flex items-center justify-between">
           <p className="text-[10px] font-mono tracking-widest text-indigo-400 uppercase flex items-center gap-1.5">
             <Terminal className="h-3.5 w-3.5" />
-            ADAS AI COGNITIVE CORE
+            AEC AI COGNITIVE CORE
           </p>
           <div className="flex items-center gap-1.5 text-[10px] font-mono text-emerald-400">
             <Activity className="h-3 w-3 animate-pulse" />
@@ -167,7 +167,7 @@ export function AdasChatPanel({
               value={question}
               onChange={(event) => setQuestion(event.target.value)}
               rows={3}
-              placeholder="Ask ADAS to explain room layouts or rule violations..."
+              placeholder="Ask AEC to explain room layouts or rule violations..."
               className={`w-full rounded-md border border-slate-900 bg-slate-950 px-3 py-2 text-xs text-slate-200 font-mono shadow-inner outline-none transition focus:border-indigo-950 focus:ring-1 focus:ring-indigo-900/30 placeholder-slate-500 ${focusRing}`}
             />
           </div>

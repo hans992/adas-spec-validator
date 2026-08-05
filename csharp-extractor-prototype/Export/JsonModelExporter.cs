@@ -1,7 +1,7 @@
 using System.Text.Json;
-using Adas.SpecExtractor.Models;
+using Aec.SpecExtractor.Models;
 
-namespace Adas.SpecExtractor.Export;
+namespace Aec.SpecExtractor.Export;
 
 public static class JsonModelExporter
 {
