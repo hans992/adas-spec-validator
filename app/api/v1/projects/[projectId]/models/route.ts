@@ -1,6 +1,7 @@
 import { inputFingerprint } from "@/domain/pipelineArtifacts";
 import { parseIfcBytes } from "@/domain/ifcParser";
 import { validateUploadedModel } from "@/domain/uploadHelpers";
+import { metricEvent } from "@/observability/logger";
 import {
   apiErrorResponse,
   apiResponse,
@@ -10,6 +11,8 @@ import {
 } from "@/persistence/projectApiAuth";
 import { PersistenceError } from "@/persistence/supabaseRest";
 import { serviceSupabaseRequest } from "@/persistence/serviceSupabase";
+import { consumeRateLimit, rateLimitedResponse } from "@/security/rateLimit";
+import { assertUploadedFile, withParserTimeout } from "@/security/uploadGuards";
 
 export const runtime = "nodejs";
 type Context = { params: Promise<{ projectId: string }> };
@@ -33,6 +36,10 @@ export async function POST(request: Request, context: Context) {
   try {
     const { projectId } = await context.params;
     const identity = await requireProjectApiScope(request, projectId, "models:write");
+    const rateLimit = await consumeRateLimit("upload", `project:${projectId}`);
+    if (!rateLimit.allowed) {
+      return rateLimitedResponse(rateLimit, "Too many model uploads for this project. Please retry later.");
+    }
     const idempotencyKey = readIdempotencyKey(request);
     const form = await request.formData();
     const file = form.get("file");
@@ -41,9 +48,15 @@ export async function POST(request: Request, context: Context) {
       throw new PersistenceError("Model must be non-empty and no larger than 20 MB.", 413);
     }
     const bytes = new Uint8Array(await file.arrayBuffer());
+    const uploadKind = file.name.toLowerCase().endsWith(".json") ? "model_json" as const : "ifc" as const;
+    const guard = assertUploadedFile({ kind: uploadKind, fileName: file.name, mimeType: file.type, bytes });
+    if (!guard.ok) {
+      metricEvent("upload_rejected", { requestId, kind: uploadKind, status: guard.status });
+      throw new PersistenceError(guard.error, guard.status);
+    }
     const contentHash = sha256Hex(bytes);
     const fingerprint = inputFingerprint({
-      fileName: file.name,
+      fileName: guard.safeFileName,
       contentHash,
       contentType: file.type || "application/octet-stream"
     });
@@ -65,13 +78,19 @@ export async function POST(request: Request, context: Context) {
       return apiResponse({ model: existing[0], replayed: true }, { requestId });
     }
 
+    const parseStartedAt = Date.now();
     let model;
     let diagnostics: unknown = null;
-    if (file.name.toLowerCase().endsWith(".ifc")) {
-      const parsed = await parseIfcBytes(bytes);
-      model = parsed.model;
-      diagnostics = parsed.diagnostics;
-    } else if (file.name.toLowerCase().endsWith(".json")) {
+    if (uploadKind === "ifc") {
+      try {
+        const parsed = await withParserTimeout(() => parseIfcBytes(bytes), 30_000, "IFC parse");
+        model = parsed.model;
+        diagnostics = parsed.diagnostics;
+      } catch (error) {
+        metricEvent("parser_failure", { requestId, kind: "ifc" });
+        throw new PersistenceError(error instanceof Error ? error.message : "IFC parsing failed.", 422);
+      }
+    } else {
       let raw: unknown;
       try {
         raw = JSON.parse(new TextDecoder().decode(bytes));
@@ -81,9 +100,8 @@ export async function POST(request: Request, context: Context) {
       const parsed = validateUploadedModel(raw);
       if (!parsed.success) throw new PersistenceError(parsed.error, 422);
       model = parsed.data;
-    } else {
-      throw new PersistenceError("Only .ifc and normalized-model .json files are accepted.", 415);
     }
+    metricEvent("model_import_duration_ms", { requestId, value: Date.now() - parseStartedAt, kind: uploadKind });
 
     const rows = await serviceSupabaseRequest<unknown[]>("project_model_assets", {
       method: "POST",
@@ -92,7 +110,7 @@ export async function POST(request: Request, context: Context) {
         project_id: projectId,
         owner_id: identity.ownerId,
         created_by: identity.actorId,
-        source_file_name: file.name.slice(0, 255),
+        source_file_name: guard.safeFileName.slice(0, 255),
         source_content_hash: contentHash,
         input_fingerprint: fingerprint,
         idempotency_key: idempotencyKey,

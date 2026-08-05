@@ -17,6 +17,13 @@ import {
   dispatchWebhookDeliveries,
   enqueueValidationCompleted
 } from "@/persistence/webhookDelivery";
+import { metricEvent } from "@/observability/logger";
+import {
+  acquireJobSlot,
+  consumeRateLimit,
+  rateLimitedResponse,
+  releaseJobSlot
+} from "@/security/rateLimit";
 
 export const runtime = "nodejs";
 type Context = { params: Promise<{ projectId: string }> };
@@ -49,9 +56,25 @@ export async function GET(request: Request, context: Context) {
 
 export async function POST(request: Request, context: Context) {
   const requestId = crypto.randomUUID();
+  let jobSlotKey: string | null = null;
   try {
     const { projectId } = await context.params;
     const identity = await requireProjectApiScope(request, projectId, "runs:write");
+
+    const rateLimit = await consumeRateLimit("validation", `project:${projectId}`);
+    if (!rateLimit.allowed) {
+      return rateLimitedResponse(rateLimit, "Too many validation runs for this project. Please retry later.");
+    }
+    // One expensive validation job per project at a time.
+    const slot = await acquireJobSlot(`validation:${projectId}`);
+    if (!slot.acquired) {
+      return rateLimitedResponse(
+        { ...slot, allowed: false, limit: 1, remaining: 0 },
+        "A validation run for this project is already in progress. Please retry shortly."
+      );
+    }
+    jobSlotKey = `validation:${projectId}`;
+
     const idempotencyKey = readIdempotencyKey(request);
     const input = createPipelineRunSchema.parse(await request.json());
     const fingerprint = inputFingerprint(input);
@@ -90,11 +113,18 @@ export async function POST(request: Request, context: Context) {
     if (!models[0]) throw new PersistenceError("Model asset not found in this project.", 404);
     if (!specifications[0]) throw new PersistenceError("Specification asset not found in this project.", 404);
 
+    const validationStartedAt = Date.now();
     const validated = validateWithDeterministicRules(
       models[0].normalized_model,
       specifications[0].requirements
     );
     const metrics = calculateComplianceMetrics(validated.requirements, validated.results);
+    metricEvent("validation_duration_ms", {
+      requestId,
+      projectId,
+      value: Date.now() - validationStartedAt,
+      requirementCount: validated.requirements.length
+    });
     const rows = await serviceSupabaseRequest<ValidationSnapshot[]>("validation_runs", {
       method: "POST",
       headers: { Prefer: "return=representation" },
@@ -160,5 +190,7 @@ export async function POST(request: Request, context: Context) {
       return apiErrorResponse(new PersistenceError("Invalid validation run payload.", 400), requestId);
     }
     return apiErrorResponse(error, requestId);
+  } finally {
+    if (jobSlotKey) await releaseJobSlot(jobSlotKey);
   }
 }

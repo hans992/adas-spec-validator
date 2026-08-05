@@ -3,8 +3,11 @@ import { z } from "zod";
 
 import { documentFragmentSchema } from "@/domain/schemas";
 import { validateCitationQuotes } from "@/domain/specificationDocxDrafts";
+import { clientIpKey, consumeRateLimit, rateLimitedResponse } from "@/security/rateLimit";
 
 export const runtime = "nodejs";
+
+const MAX_SUGGEST_BODY_BYTES = 6_000_000;
 
 const citationSchema = z.object({
   fragmentId: z.string().min(1).max(120),
@@ -30,7 +33,19 @@ const requestSchema = z.object({
 
 export async function POST(request: Request) {
   try {
-    const payload = requestSchema.parse(await request.json());
+    const rateLimit = await consumeRateLimit("upload", clientIpKey(request));
+    if (!rateLimit.allowed) {
+      return rateLimitedResponse(rateLimit, "Too many suggestion requests. Please try again shortly.");
+    }
+    const declaredLength = Number(request.headers.get("content-length") ?? "0");
+    if (Number.isFinite(declaredLength) && declaredLength > MAX_SUGGEST_BODY_BYTES) {
+      return NextResponse.json({ error: "Suggestion payload is too large." }, { status: 413 });
+    }
+    const body = await request.text();
+    if (new TextEncoder().encode(body).byteLength > MAX_SUGGEST_BODY_BYTES) {
+      return NextResponse.json({ error: "Suggestion payload is too large." }, { status: 413 });
+    }
+    const payload = requestSchema.parse(JSON.parse(body));
     const accepted = [];
     const rejected = [];
 

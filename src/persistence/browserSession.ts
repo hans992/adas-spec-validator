@@ -78,25 +78,32 @@ export function captureRecoverySession() {
   return session;
 }
 
+async function authProxyError(response: Response, fallback: string): Promise<Error> {
+  const body = await response.json().catch(() => ({})) as { error?: string; retryAfterSeconds?: number };
+  if (response.status === 429) {
+    return new Error(body.error ?? "Too many attempts. Please try again later.");
+  }
+  return new Error(body.error ?? fallback);
+}
+
 export async function signInWithPassword(email: string, password: string) {
-  const { url, anonKey } = authConfig();
-  const response = await fetch(`${url}/auth/v1/token?grant_type=password`, {
+  // Sign-in goes through the app's proxy so shared brute-force throttling applies.
+  const response = await fetch("/api/auth/sign-in", {
     method: "POST",
-    headers: { apikey: anonKey, "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password })
   });
-  if (!response.ok) throw new Error("Email or password is incorrect.");
+  if (!response.ok) throw await authProxyError(response, "Email or password is incorrect.");
   return saveSession(await response.json() as AuthPayload, email);
 }
 
 export async function signUpWithPassword(email: string, password: string) {
-  const { url, anonKey } = authConfig();
-  const response = await fetch(`${url}/auth/v1/signup`, {
+  const response = await fetch("/api/auth/sign-up", {
     method: "POST",
-    headers: { apikey: anonKey, "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password })
   });
-  if (!response.ok) throw new Error("Account could not be created.");
+  if (!response.ok) throw await authProxyError(response, "Account could not be created.");
   const payload = await response.json() as Partial<AuthPayload>;
   if (!payload.access_token || !payload.refresh_token || !payload.expires_in) return null;
   return saveSession(payload as AuthPayload, email);

@@ -327,6 +327,36 @@ export function ProjectWorkspace({ model, requirements, modelName, onOpen, speci
           </div>
         )}
 
+        {projectId && projects.find((project) => project.id === projectId)?.access_role === "owner" && (
+          <div className="space-y-2 rounded-lg border border-rose-200 p-3 text-left">
+            <p className="text-xs font-semibold text-rose-700">Data lifecycle</p>
+            <p className="text-[10px] text-slate-500">Deleting hides the project from all members immediately. The owner can restore it until the retention window ends; afterwards it is purged permanently.</p>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" disabled={busy} onClick={() => void run(async () => {
+                if (!window.confirm("Delete this project for all members? You can restore it during the retention window.")) return;
+                await api(`/api/projects/${projectId}`, { method: "DELETE" });
+                setProjects((current) => current.filter((project) => project.id !== projectId));
+                setProjectId("");
+                setMessage("Project deleted. The owner can restore it during the retention window.");
+              })}>Delete project</Button>
+              <Button variant="outline" size="sm" disabled={busy} onClick={() => void run(async () => {
+                const session = readBrowserSession();
+                if (!session) throw new Error("Sign in is required to export account data.");
+                const response = await fetch("/api/account/export", { headers: { Authorization: `Bearer ${session.accessToken}` } });
+                if (!response.ok) throw new Error("Account export failed.");
+                const blob = await response.blob();
+                const href = URL.createObjectURL(blob);
+                const anchor = document.createElement("a");
+                anchor.href = href;
+                anchor.download = "aec-account-export.json";
+                anchor.click();
+                URL.revokeObjectURL(href);
+                setMessage("Account export downloaded.");
+              })}>Export account data</Button>
+            </div>
+          </div>
+        )}
+
         {validations.length >= 2 && <div className="flex items-center justify-between rounded-lg bg-slate-50 p-2 dark:bg-slate-900/60"><p className="text-[11px] text-slate-500">Select exactly two runs below for a free-form compare, or use Compare to baseline on a candidate.</p><Button variant="outline" size="sm" disabled={busy || comparisonIds.length !== 2} onClick={() => void run(async () => { setRegressionReport(null); const snapshots = await Promise.all(comparisonIds.map(async (id) => (await api(`/api/projects/${projectId}/validations/${id}`)).validation as ValidationSnapshot)); snapshots.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()); setComparison(compareValidationSnapshots(snapshots[0], snapshots[1])); })}><GitCompareArrows className="mr-1.5 h-3.5 w-3.5" /> Compare runs</Button></div>}
         <div className="space-y-1.5">{validations.length === 0 ? <p className="text-xs text-slate-500">No saved validations in this project.</p> : validations.map((validation) => {
           const isBaseline = projects.find((project) => project.id === projectId)?.baseline_validation_id === validation.id;

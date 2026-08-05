@@ -3,19 +3,17 @@ import { z } from "zod";
 import { getAecChatAnswer } from "@/ai/aiClient";
 import { aecChatRequestSchema } from "@/ai/types";
 import { runDeterministicValidation } from "@/domain/ruleEngine";
-import { consumeChatRateLimit } from "@/ai/chatRateLimit";
+import { createRequestLog, metricEvent } from "@/observability/logger";
+import { clientIpKey, consumeRateLimit, rateLimitedResponse } from "@/security/rateLimit";
 
 const MAX_CHAT_BODY_BYTES = 1_000_000;
 
 export async function POST(request: Request) {
+  const log = createRequestLog("/api/chat");
   try {
-    const clientKey = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anonymous";
-    const rateLimit = consumeChatRateLimit(clientKey);
+    const rateLimit = await consumeRateLimit("chat", clientIpKey(request));
     if (!rateLimit.allowed) {
-      return NextResponse.json(
-        { error: "Too many chat requests. Please try again shortly." },
-        { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } }
-      );
+      return rateLimitedResponse(rateLimit, "Too many chat requests. Please try again shortly.");
     }
 
     const declaredLength = Number(request.headers.get("content-length") ?? "0");
@@ -36,7 +34,14 @@ export async function POST(request: Request) {
     );
     const result = await getAecChatAnswer({ ...parsedPayload, validationResults });
 
-    return NextResponse.json(result);
+    metricEvent("chat_answer", {
+      requestId: log.requestId,
+      mode: result.metadata.mode,
+      provider: result.metadata.provider,
+      durationMs: Date.now() - log.startedAt
+    });
+    log.finish({ status: 200 });
+    return NextResponse.json(result, { headers: { "X-Request-Id": log.requestId } });
   } catch (error) {
     if (error instanceof z.ZodError || error instanceof SyntaxError) {
       return NextResponse.json(
@@ -48,6 +53,7 @@ export async function POST(request: Request) {
       );
     }
 
+    log.fail(error);
     return NextResponse.json(
       {
         error: "Unexpected chat route error."
