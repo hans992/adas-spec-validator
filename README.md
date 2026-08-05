@@ -28,6 +28,9 @@ This is not a generic BIM chatbot and the LLM is never the source of truth. Rule
 - Reviewed DOCX import with OOXML provenance, source approval, and durable fragment snapshots
 - Reviewed text-based PDF import with page anchors, source-page preview, and no OCR mixing
 - Full traceability matrix (source clause → requirement → rule → evidence → finding → review) with gap filters, six separate coverage metrics, and CSV/XLSX export
+- Finding evidence attachments (file, screenshot, model element, comment, link, technical note) with author, timestamp, and SHA-256 file hashes
+- Review decisions with waiver reason/expiry and append-only superseded history
+- Server-built audit ZIP (immutable snapshot + SHA-256 checksum manifest — not a digital signature)
 
 ## Architecture
 
@@ -237,13 +240,39 @@ OPENAI_API_KEY=your_key
 # Required only for persisted projects and validation history
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
+
+# Server-only machine API and webhook settings
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+WEBHOOK_ENCRYPTION_KEY=at-least-32-random-characters
+WEBHOOK_DISPATCH_SECRET=another-random-secret
 ```
 
 Provider priority is Gemini, then OpenAI, then deterministic fallback.
 
-Apply all files in `supabase/migrations` in filename order before using persistence, including `202608040003_specification_library.sql` and `202608050002_baseline_and_release_policy.sql`. The project APIs accept a Supabase access token through `Authorization: Bearer <token>`. Validation snapshots are never accepted as client-authored results: the server validates the submitted model and requirements, reruns the deterministic engine, calculates metrics, and only then writes the snapshot. RLS and composite foreign keys enforce project access; `created_by` and `updated_by` preserve the acting user without changing the project owner identity.
+Apply all files in `supabase/migrations` in filename order before using persistence, including `202608040003_specification_library.sql`, `202608050002_baseline_and_release_policy.sql`, `202608060001_api_cli_ci.sql`, and `202608070001_evidence_and_audit.sql`. The project APIs accept a Supabase access token through `Authorization: Bearer <token>`. Validation snapshots are never accepted as client-authored results: the server validates the submitted model and requirements, reruns the deterministic engine, calculates metrics, and only then writes the snapshot. RLS and composite foreign keys enforce project access; `created_by` and `updated_by` preserve the acting user without changing the project owner identity.
 
-The browser workspace supports email/password registration, sign-in, password recovery, automatic access-token refresh, comparison of two saved runs from the same project, baseline regression against a release policy, and an A4 print/PDF report for each saved run. The report contains project/run identity, pass rate, coverage, model inventory, requirement outcomes, affected elements, stored evidence, and persisted review decisions (`open`, `acknowledged`, `resolved`, or `waived`) with audit notes. It is rendered only after the ownership-protected snapshot endpoint returns the server-generated results. Comparisons are calculated from the stored requirement snapshots and server-generated results, and classify resolved, regressed, changed, unchanged, added, and removed requirements.
+The browser workspace supports email/password registration, sign-in, password recovery, automatic access-token refresh, comparison of two saved runs from the same project, baseline regression against a release policy, and an A4 print/PDF report for each saved run. The report contains project/run identity, pass rate, coverage, model inventory, requirement outcomes, affected elements, engine evidence, human-attached finding evidence, and persisted review decisions (`open`, `acknowledged`, `resolved`, or `waived`) with waiver reason/expiry, reviewer identity, and superseded decision history. It is rendered only after the ownership-protected snapshot endpoint returns the server-generated results. Comparisons are calculated from the stored requirement snapshots and server-generated results, and classify resolved, regressed, changed, unchanged, added, and removed requirements.
+
+### Evidence and audit package
+
+Each finding on a saved run can carry human-attached evidence: file or screenshot (≤5 MB, SHA-256 hashed), model element reference, comment, link, or technical note, plus author and timestamp. Review updates archive the previous decision into append-only history before writing the new current decision. Waived decisions require a waiver reason and may set an expiry.
+
+`GET /api/projects/:projectId/validations/:validationId/audit-bundle` returns a server-built ZIP. Integrity is an **immutable snapshot** plus **SHA-256 checksums** and a **server-generated manifest** — the package is **not digitally signed**. Bundle contents:
+
+| Path | Contents |
+|---|---|
+| `manifest.json` / `CHECKSUMS.sha256` | Package identity, file hashes, integrity note |
+| `project.json` | Project manifest (baseline + release policy) |
+| `specification.json` | Spec name/revision + requirements |
+| `validation-configuration.json` | Run config and metrics |
+| `model-fingerprint.json` | Model inventory + content hashes |
+| `findings.json` | Deterministic engine findings |
+| `evidence/` | Attachment index + binary files |
+| `reviews/` | Current decisions + superseded history |
+| `traceability/` | Matrix CSV/XLSX |
+| `results/` | JSON + XLSX results |
+| `report/report.pdf` | PDF audit report |
+| `audit-log.json` | Chronological validation/review/evidence events |
 
 ### Baseline and regression validation
 
@@ -270,6 +299,114 @@ Per-project **release policy** (owner-editable) evaluates to `pass`, `warn`, or 
 | Max medium (warning) findings | unlimited | Blocks when candidate warning fails exceed the cap |
 
 Add the application's production origin and local development origin to the Supabase Auth redirect URL allowlist so recovery links can return to the workspace. Whether a newly registered account receives an immediate session or must confirm its email follows the Supabase project's Auth settings.
+
+## Pipeline API, CLI, and CI
+
+Apply `202608060001_api_cli_ci.sql` after the earlier migrations. Machine API routes also require server-only `SUPABASE_SERVICE_ROLE_KEY`; durable webhook delivery requires `WEBHOOK_ENCRYPTION_KEY` and `WEBHOOK_DISPATCH_SECRET`. None of these values may use a `NEXT_PUBLIC_` prefix.
+
+### Project API tokens
+
+Project owners create tokens with their normal Supabase session:
+
+```bash
+curl -X POST "$AEC_API_URL/api/projects/$AEC_PROJECT_ID/tokens" \
+  -H "Authorization: Bearer $SUPABASE_USER_JWT" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"GitHub Actions","scopes":["models:write","specifications:write","runs:write","runs:read","regressions:read"],"expiresAt":"2027-01-01T00:00:00.000Z"}'
+```
+
+The `aec_…` token is returned once. Only its SHA-256 hash is stored. `GET` lists token prefixes, scopes, expiry, revocation, and last use; `DELETE ?tokenId=…` revokes immediately. Tokens are restricted to one project and can receive:
+
+- `models:read`, `models:write`
+- `specifications:read`, `specifications:write`
+- `runs:read`, `runs:write`
+- `regressions:read`
+
+Owner operations such as changing the baseline, release policy, token lifecycle, and webhook registration still require a user session.
+
+### Versioned API
+
+All machine endpoints live under `/api/v1/projects/:projectId`. Mutating calls require a URL-safe `Idempotency-Key` header. Repeating the same key and input returns the original resource; reusing a key with different input returns `409`.
+
+```bash
+# 1. Upload and normalize IFC (normalized JSON is also accepted)
+curl -X POST "$AEC_API_URL/api/v1/projects/$AEC_PROJECT_ID/models" \
+  -H "Authorization: Bearer $AEC_API_TOKEN" \
+  -H "Idempotency-Key: model-$GIT_COMMIT" \
+  -F "file=@building.ifc"
+
+# 2. Upload canonical JSON, CSV, or XLSX specification
+curl -X POST "$AEC_API_URL/api/v1/projects/$AEC_PROJECT_ID/specifications" \
+  -H "Authorization: Bearer $AEC_API_TOKEN" \
+  -H "Idempotency-Key: spec-$GIT_COMMIT" \
+  -F "file=@project-requirements.xlsx"
+
+# 3. Run server-authoritative deterministic validation
+curl -X POST "$AEC_API_URL/api/v1/projects/$AEC_PROJECT_ID/validation-runs" \
+  -H "Authorization: Bearer $AEC_API_TOKEN" \
+  -H "Idempotency-Key: run-$GIT_COMMIT" \
+  -H "Content-Type: application/json" \
+  -d '{"modelId":"MODEL_UUID","specificationId":"SPEC_UUID"}'
+
+# 4. Retrieve or compare
+curl -H "Authorization: Bearer $AEC_API_TOKEN" \
+  "$AEC_API_URL/api/v1/projects/$AEC_PROJECT_ID/validation-runs/RUN_UUID"
+curl -H "Authorization: Bearer $AEC_API_TOKEN" \
+  "$AEC_API_URL/api/v1/projects/$AEC_PROJECT_ID/validation-runs/RUN_UUID/comparison?baseline=main"
+```
+
+Run retrieval supports `?format=csv` and `?format=sarif`. The API is synchronous in v1: a successful run response means validation results and the webhook outbox event have been committed.
+
+Canonical XLSX automation is intentionally strict. A visible worksheet must have high-confidence canonical mappings for `id`, `title`, `type`, and `severity`; any uncertain mapping must be reviewed in the browser import wizard instead of being guessed by CI.
+
+### CLI
+
+The Node 22 CLI is API-first and has no runtime package dependencies:
+
+```bash
+export AEC_API_URL=https://validator.example.com
+export AEC_API_TOKEN=aec_...
+export AEC_PROJECT_ID=...
+
+npm run aec-validator -- validate \
+  --model building.ifc \
+  --spec project-requirements.xlsx \
+  --baseline main \
+  --fail-on critical \
+  --json aec-report.json \
+  --csv aec-report.csv \
+  --sarif aec-report.sarif
+```
+
+Primary output uses `--format human|json|csv|sarif` and optional `--output PATH`. Additional JSON, CSV, and SARIF artifacts can be emitted in the same run.
+
+- Exit `0`: validation/release policy accepted (warnings do not fail CI)
+- Exit `1`: `--fail-on` threshold or deterministic regression gate blocked
+- Exit `2`: CLI usage, configuration, or invalid input
+- Exit `3`: authentication, network, or server failure
+
+AI explanations never influence process exit codes.
+
+### Durable webhooks
+
+Owners register HTTPS webhook receivers at `POST /api/projects/:projectId/webhooks`. The signing secret is returned once and encrypted at rest; private-network, localhost, credential-bearing, HTTP, and custom-port targets are rejected.
+
+Each committed run enqueues `validation.completed`. Delivery includes `X-AEC-Event`, `X-AEC-Event-Id`, and:
+
+```text
+X-AEC-Signature: sha256=HMAC_SHA256(exact_request_body, webhook_secret)
+```
+
+Receivers should verify the signature over the exact body and deduplicate by event ID. Failed attempts remain in `webhook_deliveries` with exponential retries (up to eight attempts). Run a provider-neutral scheduler against:
+
+```bash
+curl -X POST "$AEC_API_URL/api/internal/webhooks/dispatch?limit=20" \
+  -H "Authorization: Bearer $WEBHOOK_DISPATCH_SECRET"
+```
+
+Owners inspect the latest delivery log at `GET /api/projects/:projectId/webhooks/deliveries`.
+
+Ready-to-copy GitHub Actions, GitLab CI, and generic Docker examples are in [`examples/ci`](examples/ci). The GitHub example preserves JSON/CSV/SARIF artifacts and publishes SARIF to code scanning before enforcing the merge gate.
 
 ## Run locally
 

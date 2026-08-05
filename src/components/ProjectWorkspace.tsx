@@ -5,7 +5,7 @@ import { BookOpen, FileText, FolderOpen, GitCompareArrows, KeyRound, LogIn, LogO
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ValidationReport, type ValidationReview } from "@/components/ValidationReport";
+import { ValidationReport, type FindingEvidenceRow, type ReviewHistoryRow, type ValidationReview } from "@/components/ValidationReport";
 import type { NormalizedModel, Requirement, SpecificationPackage } from "@/domain/types";
 import {
   DEFAULT_RELEASE_POLICY,
@@ -66,6 +66,8 @@ export function ProjectWorkspace({ model, requirements, modelName, onOpen, speci
   const [comparison, setComparison] = useState<ValidationComparison | null>(null);
   const [reportSnapshot, setReportSnapshot] = useState<ValidationSnapshot | null>(null);
   const [reportReviews, setReportReviews] = useState<ValidationReview[]>([]);
+  const [reportEvidence, setReportEvidence] = useState<FindingEvidenceRow[]>([]);
+  const [reportHistory, setReportHistory] = useState<ReviewHistoryRow[]>([]);
   const [newProjectName, setNewProjectName] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -179,7 +181,50 @@ export function ProjectWorkspace({ model, requirements, modelName, onOpen, speci
   );
 
   return (<>
-    {reportSnapshot && <ValidationReport projectName={projects.find((project) => project.id === projectId)?.name ?? "Untitled project"} snapshot={reportSnapshot} reviews={reportReviews} canEdit={projects.find((project) => project.id === projectId)?.access_role !== "viewer"} onSaveReview={async (decision) => { const payload = await api(`/api/projects/${projectId}/validations/${reportSnapshot.id}/reviews`, { method: "PUT", body: JSON.stringify(decision) }); setReportReviews((current) => { const next = [payload.review, ...current.filter((review) => review.requirement_id !== payload.review.requirement_id)]; onReviewsLoaded?.(next, `${reportSnapshot.model_name} · ${new Date(reportSnapshot.created_at).toLocaleString()}`); return next; }); }} onClose={() => setReportSnapshot(null)} />}
+    {reportSnapshot && <ValidationReport
+      projectName={projects.find((project) => project.id === projectId)?.name ?? "Untitled project"}
+      snapshot={reportSnapshot}
+      reviews={reportReviews}
+      evidence={reportEvidence}
+      history={reportHistory}
+      canEdit={projects.find((project) => project.id === projectId)?.access_role !== "viewer"}
+      onSaveReview={async (decision) => {
+        const payload = await api(`/api/projects/${projectId}/validations/${reportSnapshot.id}/reviews`, { method: "PUT", body: JSON.stringify(decision) });
+        const historyPayload = await api(`/api/projects/${projectId}/validations/${reportSnapshot.id}/reviews?history=1`);
+        setReportHistory(historyPayload.history ?? []);
+        setReportReviews((current) => {
+          const next = [payload.review, ...current.filter((review) => review.requirement_id !== payload.review.requirement_id)];
+          onReviewsLoaded?.(next, `${reportSnapshot.model_name} · ${new Date(reportSnapshot.created_at).toLocaleString()}`);
+          return next;
+        });
+      }}
+      onAddEvidence={async (payload) => {
+        const response = await api(`/api/projects/${projectId}/validations/${reportSnapshot.id}/evidence`, {
+          method: "POST",
+          body: JSON.stringify(payload)
+        });
+        setReportEvidence((current) => [response.evidence, ...current]);
+      }}
+      onDownloadAuditBundle={async () => {
+        const session = readBrowserSession();
+        if (!session) throw new Error("Sign in is required to download the audit package.");
+        const response = await fetch(`/api/projects/${projectId}/validations/${reportSnapshot.id}/audit-bundle`, {
+          headers: { Authorization: `Bearer ${session.accessToken}` }
+        });
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({}));
+          throw new Error(body.error ?? "Audit package download failed.");
+        }
+        const blob = await response.blob();
+        const href = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = href;
+        anchor.download = `audit-bundle-${reportSnapshot.id}.zip`;
+        anchor.click();
+        URL.revokeObjectURL(href);
+      }}
+      onClose={() => setReportSnapshot(null)}
+    />}
     <Card className="shadow-md">
       <CardHeader className="pb-3 text-left"><div className="flex items-center justify-between"><div><CardTitle className="text-sm">Project workspace</CardTitle><CardDescription className="text-xs">Signed in as {session.email}</CardDescription></div><Button variant="outline" size="sm" onClick={() => { clearBrowserSession(); setSession(null); setProjects([]); }}><LogOut className="mr-1.5 h-3.5 w-3.5" /> Sign out</Button></div></CardHeader>
       <CardContent className="space-y-3">
@@ -299,7 +344,7 @@ export function ProjectWorkspace({ model, requirements, modelName, onOpen, speci
                 {isOwner && !isBaseline && <Button variant="outline" size="sm" disabled={busy} onClick={() => void run(async () => { const payload = await api(`/api/projects/${projectId}`, { method: "PATCH", body: JSON.stringify({ baselineValidationId: validation.id }) }); setProjects((current) => current.map((project) => project.id === projectId ? { ...project, ...payload.project, access_role: project.access_role } : project)); setRegressionReport(null); setMessage("Baseline validation set."); })}>Set baseline</Button>}
                 {isOwner && isBaseline && <Button variant="outline" size="sm" disabled={busy} onClick={() => void run(async () => { const payload = await api(`/api/projects/${projectId}`, { method: "PATCH", body: JSON.stringify({ baselineValidationId: null }) }); setProjects((current) => current.map((project) => project.id === projectId ? { ...project, ...payload.project, access_role: project.access_role } : project)); setRegressionReport(null); setMessage("Baseline cleared."); })}>Clear baseline</Button>}
                 {!isBaseline && projects.find((project) => project.id === projectId)?.baseline_validation_id && <Button variant="outline" size="sm" disabled={busy} onClick={() => void run(async () => { setComparison(null); const payload = await api(`/api/projects/${projectId}/regression?candidateId=${encodeURIComponent(validation.id)}`); setRegressionReport(payload.report as RegressionReport); setMessage(payload.report.gate.status === "pass" ? "Regression gate passed." : payload.report.gate.status === "warn" ? "Regression gate warned." : "Regression gate blocked"); })}>Compare to baseline</Button>}
-                <Button variant="outline" size="sm" disabled={busy} onClick={() => void run(async () => { const [snapshotPayload, reviewsPayload] = await Promise.all([api(`/api/projects/${projectId}/validations/${validation.id}`), api(`/api/projects/${projectId}/validations/${validation.id}/reviews`)]); setReportReviews(reviewsPayload.reviews); setReportSnapshot(snapshotPayload.validation); onReviewsLoaded?.(reviewsPayload.reviews, `${validation.model_name} · ${new Date(validation.created_at).toLocaleString()}`); })}><FileText className="mr-1.5 h-3.5 w-3.5" /> Report</Button>
+                <Button variant="outline" size="sm" disabled={busy} onClick={() => void run(async () => { const [snapshotPayload, reviewsPayload, evidencePayload] = await Promise.all([api(`/api/projects/${projectId}/validations/${validation.id}`), api(`/api/projects/${projectId}/validations/${validation.id}/reviews?history=1`), api(`/api/projects/${projectId}/validations/${validation.id}/evidence`)]); setReportReviews(reviewsPayload.reviews); setReportHistory(reviewsPayload.history ?? []); setReportEvidence(evidencePayload.evidence ?? []); setReportSnapshot(snapshotPayload.validation); onReviewsLoaded?.(reviewsPayload.reviews, `${validation.model_name} · ${new Date(validation.created_at).toLocaleString()}`); })}><FileText className="mr-1.5 h-3.5 w-3.5" /> Report</Button>
                 <Button variant="outline" size="sm" disabled={busy} onClick={() => void run(async () => { const payload = await api(`/api/projects/${projectId}/validations/${validation.id}`); onOpen(payload.validation); setMessage("Saved validation opened."); })}><FolderOpen className="mr-1.5 h-3.5 w-3.5" /> Open</Button>
               </div>
             </div>
