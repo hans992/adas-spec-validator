@@ -32,6 +32,7 @@ import { ProjectWorkspace, type ProjectTarget } from "@/components/ProjectWorksp
 import { RequirementEditor } from "@/components/RequirementEditor";
 import { XlsxImportWizard } from "@/components/XlsxImportWizard";
 import { DocxImportWizard } from "@/components/DocxImportWizard";
+import { PdfImportWizard } from "@/components/PdfImportWizard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -71,6 +72,8 @@ export default function Home() {
   const [showXlsxImporter, setShowXlsxImporter] = useState(false);
   const [docxFile, setDocxFile] = useState<File | null>(null);
   const [showDocxImporter, setShowDocxImporter] = useState(false);
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [showPdfImporter, setShowPdfImporter] = useState(false);
   const [projectTarget, setProjectTarget] = useState<ProjectTarget | null>(null);
   const [specificationRefreshKey, setSpecificationRefreshKey] = useState(0);
   const [importSummary, setImportSummary] = useState<{
@@ -212,6 +215,12 @@ export default function Home() {
       setRequirementsError("");
       return;
     }
+    if (file.name.toLowerCase().endsWith(".pdf")) {
+      setPdfFile(file);
+      setShowPdfImporter(true);
+      setRequirementsError("");
+      return;
+    }
     const rawText = await file.text();
     let validationResult: UploadParseResult<SpecificationPackage>;
     if (file.name.toLowerCase().endsWith(".csv")) {
@@ -259,7 +268,8 @@ export default function Home() {
       "application/json": [".json"],
       "text/csv": [".csv"],
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"]
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
+      "application/pdf": [".pdf"]
     },
     maxFiles: 1,
     multiple: false,
@@ -325,6 +335,38 @@ export default function Home() {
     });
     setShowDocxImporter(false);
     setDocxFile(null);
+  }
+
+  async function confirmPdfImport(
+    specification: SpecificationPackage,
+    meta: { fileName: string; includedRows: number; excludedRows: Array<{ sourceRow: number; reason: string }> }
+  ) {
+    if (projectTarget && !projectTarget.canEdit) throw new Error("Viewers cannot create specification revisions.");
+    if (projectTarget) {
+      await authenticatedBrowserApi(`/api/projects/${projectTarget.projectId}/specifications`, {
+        method: "POST",
+        body: JSON.stringify(specification)
+      });
+      setSpecificationRefreshKey((current) => current + 1);
+    }
+    setRequirementsData(specification.requirements);
+    setRequirementsSource("uploaded");
+    setRequirementsFilename(meta.fileName);
+    setSpecificationName(specification.name);
+    setSpecificationRevision(specification.revision);
+    setRequirementsError("");
+    const pageNote = specification.documentSource?.kind === "pdf"
+      ? ` across ${specification.documentSource.pageCount} pages`
+      : "";
+    setImportSummary({
+      message: `${meta.includedRows} PDF requirements confirmed with durable page-linked snapshot${pageNote}` +
+        (specification.documentSource ? ` (hash ${specification.documentSource.contentHash.slice(0, 12)}…)` : "") +
+        `; ${meta.excludedRows.length} clauses excluded` +
+        (projectTarget ? ` and revision saved to ${projectTarget.projectName}.` : ". Session-only draft: refresh will discard it."),
+      excludedRows: meta.excludedRows
+    });
+    setShowPdfImporter(false);
+    setPdfFile(null);
   }
 
   async function exportActiveSpecification() {
@@ -550,6 +592,12 @@ ${res.evidence
           onClose={() => { setShowDocxImporter(false); setDocxFile(null); }}
         /></section>}
 
+        {showPdfImporter && <section id="pdf-import"><PdfImportWizard
+          initialFile={pdfFile}
+          onConfirm={confirmPdfImport}
+          onClose={() => { setShowPdfImporter(false); setPdfFile(null); }}
+        /></section>}
+
         {importSummary && <div className="rounded border border-sky-200 bg-sky-50 p-3 text-xs text-sky-900">
           <p>{importSummary.message}</p>
           {importSummary.excludedRows.length > 0 && <details className="mt-2"><summary>Excluded-row audit</summary><ul className="mt-1 list-disc pl-5">{importSummary.excludedRows.map((row) => <li key={row.sourceRow}>Row {row.sourceRow}: {row.reason}</li>)}</ul></details>}
@@ -750,7 +798,7 @@ ${res.evidence
                       <FileJson className="mt-0.5 h-4 w-4 text-slate-500 flex-shrink-0" />
                       <div className="space-y-1">
                         <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">Upload Specification</p>
-                        <p className="text-[10px] text-slate-500">Import JSON/CSV, reviewed XLSX, or DOCX with durable source provenance.</p>
+                        <p className="text-[10px] text-slate-500">Import JSON/CSV, XLSX, DOCX, or text-based PDF — extract candidates, verify sources, then save.</p>
                       </div>
                     </div>
                     {requirementsFilename && (

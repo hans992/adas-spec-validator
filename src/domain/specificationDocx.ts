@@ -6,7 +6,7 @@ import JSZip from "jszip";
 import type {
   DocumentFragment,
   DocumentFragmentKind,
-  DocumentSourceSnapshot,
+  DocxDocumentSourceSnapshot,
   DocxSourceAnchor
 } from "@/domain/types";
 
@@ -37,10 +37,10 @@ export interface DocxExtraction {
   contentHash: string;
   parserVersion: string;
   language: DocxLanguage;
-  metadata: DocumentSourceSnapshot["metadata"];
+  metadata: DocxDocumentSourceSnapshot["metadata"];
   fragments: DocumentFragment[];
   unsupportedContent: UnsupportedContentNotice[];
-  trackChanges: DocumentSourceSnapshot["trackChanges"];
+  trackChanges: DocxDocumentSourceSnapshot["trackChanges"];
   warnings: string[];
 }
 
@@ -492,7 +492,7 @@ async function readZipText(zip: JSZip, path: string): Promise<string | null> {
   return text;
 }
 
-function readCoreMetadata(xml: string | null): DocumentSourceSnapshot["metadata"] {
+function readCoreMetadata(xml: string | null): DocxDocumentSourceSnapshot["metadata"] {
   if (!xml) return {};
   assertSafeXml(xml, "docProps/core.xml");
   const parsed = createXmlParser().parse(xml) as Record<string, unknown>;
@@ -521,7 +521,7 @@ function readCoreMetadata(xml: string | null): DocumentSourceSnapshot["metadata"
 function pushFragment(
   fragments: DocumentFragment[],
   documentHash: string,
-  partial: Omit<DocumentFragment, "fragmentId">
+  partial: Omit<DocumentFragment, "fragmentId"> & { sourceAnchor: DocxSourceAnchor }
 ): void {
   if (!partial.exactText.trim()) return;
   if (fragments.length >= DOCX_LIMITS.maxFragments) {

@@ -38,6 +38,34 @@ const docxSourceAnchorSchema = z.discriminatedUnion("kind", [
     endOffset: z.number().int().nonnegative().optional()
   }).strict()
 ]);
+const pdfBboxSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+  width: z.number().nonnegative(),
+  height: z.number().nonnegative()
+}).strict();
+const pdfSourceAnchorSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("pdf_text_block"),
+    pageIndex: z.number().int().nonnegative(),
+    pageNumber: z.number().int().positive(),
+    bbox: pdfBboxSchema,
+    startOffset: z.number().int().nonnegative(),
+    endOffset: z.number().int().nonnegative()
+  }).strict(),
+  z.object({
+    kind: z.literal("pdf_table_cell"),
+    pageIndex: z.number().int().nonnegative(),
+    pageNumber: z.number().int().positive(),
+    tableIndex: z.number().int().nonnegative(),
+    rowIndex: z.number().int().nonnegative(),
+    cellIndex: z.number().int().nonnegative(),
+    bbox: pdfBboxSchema,
+    startOffset: z.number().int().nonnegative().optional(),
+    endOffset: z.number().int().nonnegative().optional()
+  }).strict()
+]);
+const documentSourceAnchorSchema = z.union([docxSourceAnchorSchema, pdfSourceAnchorSchema]);
 const documentFragmentSchema = z.object({
   fragmentId: z.string().trim().min(1).max(120),
   kind: z.enum([
@@ -58,32 +86,50 @@ const documentFragmentSchema = z.object({
     rowIndex: z.number().int().nonnegative(),
     cellIndex: z.number().int().nonnegative()
   }).strict().optional(),
-  sourceAnchor: docxSourceAnchorSchema,
+  sourceAnchor: documentSourceAnchorSchema,
   revisionContent: z.boolean().optional(),
-  languageHints: z.array(z.string().trim().min(1).max(20)).max(10).optional()
+  languageHints: z.array(z.string().trim().min(1).max(20)).max(10).optional(),
+  extractionQuality: z.enum(["digital_text", "unreliable_layout", "table_heuristic", "sparse_text"]).optional(),
+  ocrConfidence: z.number().min(0).max(1).optional()
 }).strict();
 export { documentFragmentSchema };
-export const documentSourceSnapshotSchema = z.object({
+
+const fragmentRequirementMapSchema = z.array(z.object({
+  requirementId: z.string().trim().min(1).max(100),
+  fragmentIds: z.array(z.string().trim().min(1).max(120)).min(1).max(50),
+  textRanges: z.array(z.object({
+    fragmentId: z.string().trim().min(1).max(120),
+    startOffset: z.number().int().nonnegative(),
+    endOffset: z.number().int().nonnegative(),
+    exactText: z.string().max(20_000)
+  }).strict()).max(50)
+}).strict()).max(1000);
+
+const documentMetadataSchema = z.object({
+  title: z.string().trim().max(500).optional(),
+  creator: z.string().trim().max(200).optional(),
+  subject: z.string().trim().max(500).optional(),
+  description: z.string().trim().max(2000).optional(),
+  lastModifiedBy: z.string().trim().max(200).optional(),
+  created: z.string().trim().max(64).optional(),
+  modified: z.string().trim().max(64).optional()
+}).strict();
+
+const unsupportedContentSchema = z.array(z.object({
+  kind: z.string().trim().min(1).max(80),
+  count: z.number().int().nonnegative(),
+  message: z.string().trim().min(1).max(500)
+}).strict()).max(100);
+
+const docxDocumentSourceSnapshotSchema = z.object({
   kind: z.literal("docx"),
   fileName: z.string().trim().min(1).max(180),
   contentHash: z.string().trim().regex(/^[a-f0-9]{64}$/),
   parserVersion: z.string().trim().min(1).max(40),
   language: z.string().trim().min(2).max(16).optional(),
-  metadata: z.object({
-    title: z.string().trim().max(500).optional(),
-    creator: z.string().trim().max(200).optional(),
-    subject: z.string().trim().max(500).optional(),
-    description: z.string().trim().max(2000).optional(),
-    lastModifiedBy: z.string().trim().max(200).optional(),
-    created: z.string().trim().max(64).optional(),
-    modified: z.string().trim().max(64).optional()
-  }).strict(),
+  metadata: documentMetadataSchema,
   fragments: z.array(documentFragmentSchema).max(20_000),
-  unsupportedContent: z.array(z.object({
-    kind: z.string().trim().min(1).max(80),
-    count: z.number().int().nonnegative(),
-    message: z.string().trim().min(1).max(500)
-  }).strict()).max(100),
+  unsupportedContent: unsupportedContentSchema,
   trackChanges: z.object({
     present: z.boolean(),
     insertedRuns: z.number().int().nonnegative(),
@@ -91,17 +137,43 @@ export const documentSourceSnapshotSchema = z.object({
     comments: z.number().int().nonnegative(),
     warning: z.string().trim().max(1000).optional()
   }).strict(),
-  fragmentRequirementMap: z.array(z.object({
-    requirementId: z.string().trim().min(1).max(100),
-    fragmentIds: z.array(z.string().trim().min(1).max(120)).min(1).max(50),
-    textRanges: z.array(z.object({
-      fragmentId: z.string().trim().min(1).max(120),
-      startOffset: z.number().int().nonnegative(),
-      endOffset: z.number().int().nonnegative(),
-      exactText: z.string().max(20_000)
-    }).strict()).max(50)
-  }).strict()).max(1000)
+  fragmentRequirementMap: fragmentRequirementMapSchema
 }).strict();
+
+const pdfPageSummarySchema = z.object({
+  pageNumber: z.number().int().positive(),
+  width: z.number().positive(),
+  height: z.number().positive(),
+  textItemCount: z.number().int().nonnegative(),
+  charCount: z.number().int().nonnegative(),
+  quality: z.enum(["digital_text", "sparse_text", "likely_scanned", "empty"]),
+  hasImages: z.boolean()
+}).strict();
+
+const pdfDocumentSourceSnapshotSchema = z.object({
+  kind: z.literal("pdf"),
+  fileName: z.string().trim().min(1).max(180),
+  contentHash: z.string().trim().regex(/^[a-f0-9]{64}$/),
+  parserVersion: z.string().trim().min(1).max(40),
+  language: z.string().trim().min(2).max(16).optional(),
+  metadata: documentMetadataSchema,
+  pageCount: z.number().int().positive().max(500),
+  pages: z.array(pdfPageSummarySchema).max(500),
+  fragments: z.array(documentFragmentSchema).max(20_000),
+  unsupportedContent: unsupportedContentSchema,
+  extractionMode: z.literal("digital_text_only"),
+  ocr: z.object({
+    enabled: z.literal(false),
+    note: z.string().trim().min(1).max(500)
+  }).strict(),
+  unreliableTableCount: z.number().int().nonnegative(),
+  fragmentRequirementMap: fragmentRequirementMapSchema
+}).strict();
+
+export const documentSourceSnapshotSchema = z.union([
+  docxDocumentSourceSnapshotSchema,
+  pdfDocumentSourceSnapshotSchema
+]);
 const requirementMetadataShape = {
   description: z.string().trim().max(4000).optional(),
   discipline: z.string().trim().max(100).optional(),

@@ -59,6 +59,29 @@ export type DocxSourceAnchor =
       endOffset?: number;
     };
 
+export type PdfSourceAnchor =
+  | {
+      kind: "pdf_text_block";
+      pageIndex: number;
+      pageNumber: number;
+      bbox: { x: number; y: number; width: number; height: number };
+      startOffset: number;
+      endOffset: number;
+    }
+  | {
+      kind: "pdf_table_cell";
+      pageIndex: number;
+      pageNumber: number;
+      tableIndex: number;
+      rowIndex: number;
+      cellIndex: number;
+      bbox: { x: number; y: number; width: number; height: number };
+      startOffset?: number;
+      endOffset?: number;
+    };
+
+export type DocumentSourceAnchor = DocxSourceAnchor | PdfSourceAnchor;
+
 export type DocumentFragmentKind =
   | "heading"
   | "subheading"
@@ -69,6 +92,12 @@ export type DocumentFragmentKind =
   | "paragraph"
   | "metadata";
 
+export type FragmentExtractionQuality =
+  | "digital_text"
+  | "unreliable_layout"
+  | "table_heuristic"
+  | "sparse_text";
+
 export interface DocumentFragment {
   fragmentId: string;
   kind: DocumentFragmentKind;
@@ -76,12 +105,27 @@ export interface DocumentFragment {
   numberingLabel?: string;
   headingPath: string[];
   tableRef?: { tableIndex: number; rowIndex: number; cellIndex: number };
-  sourceAnchor: DocxSourceAnchor;
+  sourceAnchor: DocumentSourceAnchor;
   revisionContent?: boolean;
   languageHints?: string[];
+  extractionQuality?: FragmentExtractionQuality;
+  /** Present only when OCR is introduced in a later version; v1 digital import never sets this. */
+  ocrConfidence?: number;
 }
 
-export interface DocumentSourceSnapshot {
+export type PdfPageQuality = "digital_text" | "sparse_text" | "likely_scanned" | "empty";
+
+export interface PdfPageSummary {
+  pageNumber: number;
+  width: number;
+  height: number;
+  textItemCount: number;
+  charCount: number;
+  quality: PdfPageQuality;
+  hasImages: boolean;
+}
+
+export interface DocxDocumentSourceSnapshot {
   kind: "docx";
   fileName: string;
   contentHash: string;
@@ -116,6 +160,45 @@ export interface DocumentSourceSnapshot {
     }>;
   }>;
 }
+
+export interface PdfDocumentSourceSnapshot {
+  kind: "pdf";
+  fileName: string;
+  contentHash: string;
+  parserVersion: string;
+  language?: string;
+  metadata: {
+    title?: string;
+    creator?: string;
+    subject?: string;
+    description?: string;
+    lastModifiedBy?: string;
+    created?: string;
+    modified?: string;
+  };
+  pageCount: number;
+  pages: PdfPageSummary[];
+  fragments: DocumentFragment[];
+  unsupportedContent: Array<{ kind: string; count: number; message: string }>;
+  extractionMode: "digital_text_only";
+  ocr: {
+    enabled: false;
+    note: string;
+  };
+  unreliableTableCount: number;
+  fragmentRequirementMap: Array<{
+    requirementId: string;
+    fragmentIds: string[];
+    textRanges: Array<{
+      fragmentId: string;
+      startOffset: number;
+      endOffset: number;
+      exactText: string;
+    }>;
+  }>;
+}
+
+export type DocumentSourceSnapshot = DocxDocumentSourceSnapshot | PdfDocumentSourceSnapshot;
 
 export interface RequirementSource {
   document: string;

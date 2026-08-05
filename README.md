@@ -25,6 +25,7 @@ This is not a generic BIM chatbot and the LLM is never the source of truth. Rule
 - Project specification library with immutable, reusable requirement revisions
 - Reviewed XLSX import/export with atomic confirmation
 - Reviewed DOCX import with OOXML provenance, source approval, and durable fragment snapshots
+- Reviewed text-based PDF import with page anchors, source-page preview, and no OCR mixing
 
 ## Architecture
 
@@ -126,6 +127,16 @@ On confirm, the immutable specification revision stores a durable `documentSourc
 Track Changes: inserted text is included and flagged; deleted text is never treated as an active requirement; unresolved revisions and comments produce strong warnings. Unsupported content (text boxes, embeds, footnotes/endnotes, headers/footers, altChunk, drawings) is reported instead of silently dropped. Mandatory phrasing heuristics are language-aware (EN/DE, optional HR) and only boost candidacy.
 
 Optional `/api/docx/suggest` validates per-fragment offset citations or returns non-authoritative heuristic drafts. Deterministic extract + human review works without AI.
+
+### Reviewed PDF import (digital text)
+
+PDF import is intentionally more conservative than DOCX. Version 1 extracts **digital text only** — not a fully automatic import. The product promise is:
+
+> Extract candidate requirements from project documents, verify them, and preserve the source.
+
+Each fragment carries a page number and bounding box. The review wizard shows a **source page preview** beside editable drafts. Tables are promoted only when column alignment is reliable; otherwise the layout is left as text with a warning. Scanned / empty / image-heavy pages are flagged and skipped — OCR is deferred and must never be mixed into a digital-text package (`extractionMode: "digital_text_only"`, `ocr.enabled: false`).
+
+Confirmation requires an approved source and a PDF page reference for every included requirement. The persisted `documentSource` snapshot stores the SHA-256 hash, page summaries, fragments, and requirement→fragment map. Encrypted PDFs are rejected; files are capped at 20 MB / 200 pages with a parse timeout.
 
 ### Reviewed XLSX import and export
 
