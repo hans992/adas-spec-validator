@@ -5,6 +5,7 @@ import { BookOpen, FileText, FolderOpen, GitCompareArrows, KeyRound, LogIn, LogO
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { JobsPanel } from "@/components/JobsPanel";
 import { ValidationReport, type FindingEvidenceRow, type ReviewHistoryRow, type ValidationReview } from "@/components/ValidationReport";
 import type { NormalizedModel, Requirement, SpecificationPackage } from "@/domain/types";
 import {
@@ -355,6 +356,16 @@ export function ProjectWorkspace({ model, requirements, modelName, onOpen, speci
               })}>Export account data</Button>
             </div>
           </div>
+        )}
+
+        {projectId && session && (
+          <JobsPanel
+            projectId={projectId}
+            specifications={specifications.map((item) => ({ id: item.id, name: item.name, revision: item.revision }))}
+            canEdit={projects.find((project) => project.id === projectId)?.access_role !== "viewer"}
+            api={api}
+            onJobCompleted={() => { void loadValidations(projectId).catch(() => undefined); }}
+          />
         )}
 
         {validations.length >= 2 && <div className="flex items-center justify-between rounded-lg bg-slate-50 p-2 dark:bg-slate-900/60"><p className="text-[11px] text-slate-500">Select exactly two runs below for a free-form compare, or use Compare to baseline on a candidate.</p><Button variant="outline" size="sm" disabled={busy || comparisonIds.length !== 2} onClick={() => void run(async () => { setRegressionReport(null); const snapshots = await Promise.all(comparisonIds.map(async (id) => (await api(`/api/projects/${projectId}/validations/${id}`)).validation as ValidationSnapshot)); snapshots.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()); setComparison(compareValidationSnapshots(snapshots[0], snapshots[1])); })}><GitCompareArrows className="mr-1.5 h-3.5 w-3.5" /> Compare runs</Button></div>}

@@ -32,6 +32,7 @@ This is not a generic BIM chatbot and the LLM is never the source of truth. Rule
 - Review decisions with waiver reason/expiry and append-only superseded history
 - Server-built audit ZIP (immutable snapshot + SHA-256 checksum manifest — not a digital signature)
 - Production hardening: brute-force-throttled auth proxy, magic-byte upload guards, shared Redis rate limits with `Retry-After`, per-project validation job slots, soft delete + retention purge, account export, RLS test matrix, and redacted structured logging (see `SECURITY.md`)
+- Background job system for large imports: step-based `validation_jobs` (queued → parsing → validating → persisting) with idempotent enqueue, safe-error-only retries, cancellation, timeouts, lease-based crash recovery, dead-letter marking, and temp payload cleanup; the UI shows per-phase progress that survives page refreshes
 
 ## Architecture
 
@@ -250,7 +251,7 @@ WEBHOOK_DISPATCH_SECRET=another-random-secret
 
 Provider priority is Gemini, then OpenAI, then deterministic fallback.
 
-Apply all files in `supabase/migrations` in filename order before using persistence, including `202608040003_specification_library.sql`, `202608050002_baseline_and_release_policy.sql`, `202608060001_api_cli_ci.sql`, `202608070001_evidence_and_audit.sql`, and `202608080001_security_hardening.sql`. After migrating, run the RLS test matrix (`supabase/tests/rls_test_matrix.sql`) as described in `SECURITY.md`. The project APIs accept a Supabase access token through `Authorization: Bearer <token>`. Validation snapshots are never accepted as client-authored results: the server validates the submitted model and requirements, reruns the deterministic engine, calculates metrics, and only then writes the snapshot. RLS and composite foreign keys enforce project access; `created_by` and `updated_by` preserve the acting user without changing the project owner identity.
+Apply all files in `supabase/migrations` in filename order before using persistence, including `202608040003_specification_library.sql`, `202608050002_baseline_and_release_policy.sql`, `202608060001_api_cli_ci.sql`, `202608070001_evidence_and_audit.sql`, `202608080001_security_hardening.sql`, and `202608090001_validation_jobs.sql`. After migrating, run the RLS test matrix (`supabase/tests/rls_test_matrix.sql`) as described in `SECURITY.md`. The project APIs accept a Supabase access token through `Authorization: Bearer <token>`. Validation snapshots are never accepted as client-authored results: the server validates the submitted model and requirements, reruns the deterministic engine, calculates metrics, and only then writes the snapshot. RLS and composite foreign keys enforce project access; `created_by` and `updated_by` preserve the acting user without changing the project owner identity.
 
 The browser workspace supports email/password registration, sign-in, password recovery, automatic access-token refresh, comparison of two saved runs from the same project, baseline regression against a release policy, and an A4 print/PDF report for each saved run. The report contains project/run identity, pass rate, coverage, model inventory, requirement outcomes, affected elements, engine evidence, human-attached finding evidence, and persisted review decisions (`open`, `acknowledged`, `resolved`, or `waived`) with waiver reason/expiry, reviewer identity, and superseded decision history. It is rendered only after the ownership-protected snapshot endpoint returns the server-generated results. Comparisons are calculated from the stored requirement snapshots and server-generated results, and classify resolved, regressed, changed, unchanged, added, and removed requirements.
 
@@ -300,6 +301,19 @@ Per-project **release policy** (owner-editable) evaluates to `pass`, `warn`, or 
 | Max medium (warning) findings | unlimited | Blocks when candidate warning fails exceed the cap |
 
 Add the application's production origin and local development origin to the Supabase Auth redirect URL allowlist so recovery links can return to the workspace. Whether a newly registered account receives an immediate session or must confirm its email follows the Supabase project's Auth settings.
+
+## Background jobs for large imports
+
+Large IFC or model JSON imports never live inside one serverless request. `POST /api/projects/:projectId/jobs` (multipart `file` + `specificationId`, optional `Idempotency-Key` header) stores the upload in a `validation_jobs` row and returns immediately. Short worker ticks then advance the job one phase at a time — parsing → validating → persisting — and each phase records progress, so a crashed or restarted worker resumes from the database, never from memory.
+
+- **Statuses**: `queued`, `processing`, `completed`, `failed`, `cancelled`; dead-lettered jobs are `failed` with `dead_lettered_at` set.
+- **Retries**: only safe errors (429/5xx persistence failures, network interruptions, expired worker leases) are retried with exponential backoff up to `max_attempts`. Deterministic input problems (invalid IFC/JSON, parser timeout) fail immediately with an understandable message.
+- **Idempotency**: repeated enqueues with the same `Idempotency-Key` replay the existing job; the persist phase reuses job-scoped idempotency keys so retries never duplicate model assets or validation runs.
+- **Cancellation**: `POST /api/projects/:projectId/jobs/:jobId` with `{"action":"cancel"}` cancels a queued job instantly and flags a processing job to stop before its next phase; `{"action":"retry"}` re-queues a failed job.
+- **Timeouts**: each job has a wall-clock budget (`timeout_seconds`) plus a 90-second claim lease, so a crashed worker can never wedge a job.
+- **Cleanup**: the uploaded payload is deleted as soon as parsing succeeds; terminal jobs are stripped of any remaining blobs by the janitor after 24 hours.
+
+Worker ticks come from two sources: polling `GET /api/projects/:projectId/jobs/:jobId` drives one step whenever the job is due (so interactive use needs no scheduler and progress survives page refreshes), and `POST /api/internal/jobs/run` (bearer `JOB_RUNNER_SECRET`, e.g. from a one-minute cron) keeps jobs progressing when nobody is watching.
 
 ## Pipeline API, CLI, and CI
 

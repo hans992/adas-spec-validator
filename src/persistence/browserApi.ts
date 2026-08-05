@@ -21,7 +21,8 @@ export async function authenticatedBrowserApi<T>(
   const request = (accessToken: string) => fetch(path, {
     ...init,
     headers: {
-      "Content-Type": "application/json",
+      // FormData bodies must set their own multipart boundary.
+      ...(init.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
       Authorization: `Bearer ${accessToken}`,
       ...(init.headers ?? {})
     }
