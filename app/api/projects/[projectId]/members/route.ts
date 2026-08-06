@@ -1,3 +1,4 @@
+import { assertCanInviteMember } from "@/billing/planLimits";
 import { projectInvitationSchema, projectMemberRoleSchema } from "@/persistence/schemas";
 import { authenticatedUserId, bearerToken, persistenceResponse, supabaseRequest } from "@/persistence/supabaseRest";
 
@@ -20,6 +21,7 @@ export async function POST(request: Request, context: Context) {
   try {
     const token = bearerToken(request); const ownerId = await authenticatedUserId(token);
     const { projectId } = await context.params; const input = projectInvitationSchema.parse(await request.json());
+    await assertCanInviteMember(token, ownerId, projectId);
     const rows = await supabaseRequest<unknown[]>(token, "project_invitations?on_conflict=project_id,email", {
       method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=representation" },
       body: JSON.stringify({ project_id: projectId, owner_id: ownerId, email: input.email, role: input.role, status: "pending", expires_at: new Date(Date.now() + 7 * 86400000).toISOString() })

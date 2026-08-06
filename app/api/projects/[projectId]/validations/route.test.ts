@@ -16,10 +16,15 @@ describe("POST /api/projects/:projectId/validations", () => {
   });
 
   it("reruns validation on the server and persists an evidence snapshot", async () => {
+    vi.stubEnv("FORCE_ACCOUNT_PLAN", "professional");
+    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "service-key");
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(Response.json({ id: "user-1" }))
+      .mockResolvedValueOnce(Response.json([{ validation_runs: 0, audit_exports: 0, storage_bytes: 0 }]))
       .mockResolvedValueOnce(Response.json([{ owner_id: "user-1" }]))
-      .mockResolvedValueOnce(Response.json([{ id: "run-1", project_id: "project-1" }]));
+      .mockResolvedValueOnce(Response.json([{ id: "run-1", project_id: "project-1" }]))
+      .mockResolvedValueOnce(Response.json([])) // usage bump lookup
+      .mockResolvedValueOnce(new Response(null, { status: 201 })); // usage bump write
     const request = new Request("http://localhost/api/projects/project-1/validations", {
       method: "POST",
       headers: { authorization: "Bearer valid-token", "content-type": "application/json" },
@@ -32,7 +37,7 @@ describe("POST /api/projects/:projectId/validations", () => {
 
     const response = await POST(request, { params: Promise.resolve({ projectId: "project-1" }) });
     expect(response.status).toBe(201);
-    const persisted = JSON.parse(String((fetchMock.mock.calls[2][1] as RequestInit).body));
+    const persisted = JSON.parse(String((fetchMock.mock.calls[3][1] as RequestInit).body));
     expect(persisted).toMatchObject({
       project_id: "project-1",
       owner_id: "user-1",
@@ -59,7 +64,10 @@ describe("POST /api/projects/:projectId/validations", () => {
   });
 
   it("does not accept client-supplied results", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json({ id: "user-1" }));
+    vi.stubEnv("FORCE_ACCOUNT_PLAN", "professional");
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({ id: "user-1" }))
+      .mockResolvedValueOnce(Response.json([{ validation_runs: 0, audit_exports: 0, storage_bytes: 0 }]));
     const request = new Request("http://localhost/api/projects/project-1/validations", {
       method: "POST",
       headers: { authorization: "Bearer valid-token", "content-type": "application/json" },
@@ -72,6 +80,6 @@ describe("POST /api/projects/:projectId/validations", () => {
     });
     const response = await POST(request, { params: Promise.resolve({ projectId: "project-1" }) });
     expect(response.status).toBe(400);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls.length).toBeLessThanOrEqual(2);
   });
 });

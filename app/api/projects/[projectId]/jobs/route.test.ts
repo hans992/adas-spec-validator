@@ -29,6 +29,8 @@ describe("/api/projects/[projectId]/jobs", () => {
   beforeEach(() => {
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "anon-key");
+    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "service-key");
+    vi.stubEnv("FORCE_ACCOUNT_PLAN", "professional");
     vi.spyOn(console, "log").mockImplementation(() => {});
   });
   afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); });
@@ -43,10 +45,18 @@ describe("/api/projects/[projectId]/jobs", () => {
   it("enqueues a job and never echoes the payload back", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(Response.json({ id: "user-1" }))
+      .mockResolvedValueOnce(Response.json([{ validation_runs: 0, audit_exports: 0, storage_bytes: 0 }])) // run limit
+      .mockResolvedValueOnce(Response.json([])) // owned projects (storage)
+      .mockResolvedValueOnce(Response.json([{ validation_runs: 0, audit_exports: 0, storage_bytes: 0 }])) // usage
+      .mockResolvedValueOnce(Response.json([])) // estimate projects
       .mockResolvedValueOnce(Response.json([{ id: "p-happy", owner_id: "owner-1" }]))
       .mockResolvedValueOnce(Response.json([{ id: specificationId }]))
       .mockResolvedValueOnce(Response.json([]))
-      .mockResolvedValueOnce(Response.json([jobRow]));
+      .mockResolvedValueOnce(Response.json([jobRow]))
+      .mockResolvedValueOnce(Response.json([]))
+      .mockResolvedValueOnce(new Response(null, { status: 201 }))
+      .mockResolvedValueOnce(Response.json([]))
+      .mockResolvedValueOnce(new Response(null, { status: 201 }));
 
     const file = new File([JSON.stringify(model)], "model.json", { type: "application/json" });
     const response = await POST(...enqueueRequest("p-happy", file));
@@ -56,7 +66,10 @@ describe("/api/projects/[projectId]/jobs", () => {
     expect(payload.job.input_content_base64).toBeUndefined();
     expect(payload.replayed).toBe(false);
 
-    const insert = JSON.parse(String((fetchMock.mock.calls[4][1] as RequestInit).body));
+    const insertCall = fetchMock.mock.calls.find((call) =>
+      String(call[0]).endsWith("/rest/v1/validation_jobs") && (call[1] as RequestInit).method === "POST"
+    );
+    const insert = JSON.parse(String((insertCall![1] as RequestInit).body));
     expect(insert.owner_id).toBe("owner-1");
     expect(insert.created_by).toBe("user-1");
     expect(typeof insert.input_content_base64).toBe("string");
@@ -66,6 +79,10 @@ describe("/api/projects/[projectId]/jobs", () => {
   it("replays an existing job for a repeated Idempotency-Key", async () => {
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(Response.json({ id: "user-1" }))
+      .mockResolvedValueOnce(Response.json([{ validation_runs: 0, audit_exports: 0, storage_bytes: 0 }]))
+      .mockResolvedValueOnce(Response.json([]))
+      .mockResolvedValueOnce(Response.json([{ validation_runs: 0, audit_exports: 0, storage_bytes: 0 }]))
+      .mockResolvedValueOnce(Response.json([]))
       .mockResolvedValueOnce(Response.json([{ id: "p-replay", owner_id: "owner-1" }]))
       .mockResolvedValueOnce(Response.json([{ id: specificationId }]))
       .mockResolvedValueOnce(Response.json([jobRow]));
@@ -84,7 +101,12 @@ describe("/api/projects/[projectId]/jobs", () => {
   });
 
   it("rejects disguised binary content before anything is stored", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json({ id: "user-1" }));
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({ id: "user-1" }))
+      .mockResolvedValueOnce(Response.json([{ validation_runs: 0, audit_exports: 0, storage_bytes: 0 }]))
+      .mockResolvedValueOnce(Response.json([]))
+      .mockResolvedValueOnce(Response.json([{ validation_runs: 0, audit_exports: 0, storage_bytes: 0 }]))
+      .mockResolvedValueOnce(Response.json([]));
     const zipBytes = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x20, 0x20]);
     const response = await POST(...enqueueRequest("p-guard", new File([zipBytes], "model.json", { type: "application/json" })));
     expect(response.status).toBe(415);
@@ -93,6 +115,10 @@ describe("/api/projects/[projectId]/jobs", () => {
   it("requires a specification from the same project", async () => {
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(Response.json({ id: "user-1" }))
+      .mockResolvedValueOnce(Response.json([{ validation_runs: 0, audit_exports: 0, storage_bytes: 0 }]))
+      .mockResolvedValueOnce(Response.json([]))
+      .mockResolvedValueOnce(Response.json([{ validation_runs: 0, audit_exports: 0, storage_bytes: 0 }]))
+      .mockResolvedValueOnce(Response.json([]))
       .mockResolvedValueOnce(Response.json([{ id: "p-spec", owner_id: "owner-1" }]))
       .mockResolvedValueOnce(Response.json([]));
     const file = new File([JSON.stringify(model)], "model.json", { type: "application/json" });

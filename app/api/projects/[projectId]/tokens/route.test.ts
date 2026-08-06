@@ -17,6 +17,7 @@ describe("project API token lifecycle", () => {
   });
 
   it("returns plaintext once while persisting only its hash", async () => {
+    vi.stubEnv("FORCE_ACCOUNT_PLAN", "professional");
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(Response.json({ id: "user-1" }))
       .mockResolvedValueOnce(Response.json([{ id: "project-1", owner_id: "user-1" }]))
@@ -40,7 +41,20 @@ describe("project API token lifecycle", () => {
     expect(stored).not.toHaveProperty("token");
   });
 
+  it("blocks token creation on the starter plan", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({ id: "user-1" }))
+      .mockResolvedValueOnce(Response.json([])); // starter
+    const response = await POST(new Request("http://localhost/api/projects/project-1/tokens", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ name: "CI", scopes: ["runs:read"] })
+    }), context);
+    expect(response.status).toBe(402);
+  });
+
   it("rejects expiry in the past", async () => {
+    vi.stubEnv("FORCE_ACCOUNT_PLAN", "professional");
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(Response.json({ id: "user-1" }))
       .mockResolvedValueOnce(Response.json([{ id: "project-1", owner_id: "user-1" }]));

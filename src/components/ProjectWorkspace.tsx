@@ -5,7 +5,9 @@ import { BookOpen, FileText, FolderOpen, GitCompareArrows, KeyRound, LogIn, LogO
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/EmptyState";
 import { JobsPanel } from "@/components/JobsPanel";
+import { OnboardingChecklist, type OnboardingStepId } from "@/components/OnboardingChecklist";
 import { ValidationReport, type FindingEvidenceRow, type ReviewHistoryRow, type ValidationReview } from "@/components/ValidationReport";
 import type { NormalizedModel, Requirement, SpecificationPackage } from "@/domain/types";
 import {
@@ -16,6 +18,7 @@ import {
 } from "@/domain/regressionValidation";
 import { compareValidationSnapshots, type ValidationComparison, type ValidationSnapshot } from "@/domain/validationComparison";
 import { compareSpecificationRequirements, type RequirementChange } from "@/domain/specificationComparison";
+import { DEMO_PROJECT_NAME } from "@/domain/demoProject";
 import { authenticatedBrowserApi } from "@/persistence/browserApi";
 import {
   clearBrowserSession,
@@ -86,6 +89,9 @@ export function ProjectWorkspace({ model, requirements, modelName, onOpen, speci
   const [requirementChanges, setRequirementChanges] = useState<RequirementChange[]>([]);
   const [regressionReport, setRegressionReport] = useState<RegressionReport | null>(null);
   const [policyDraft, setPolicyDraft] = useState<ReleasePolicy>(DEFAULT_RELEASE_POLICY);
+  const [onboardingDismissed, setOnboardingDismissed] = useState(false);
+  const [exportedAudit, setExportedAudit] = useState(false);
+  const [planSummary, setPlanSummary] = useState<{ name: string; usageLabel: string } | null>(null);
 
   useEffect(() => {
     const recovery = captureRecoverySession();
@@ -154,10 +160,45 @@ export function ProjectWorkspace({ model, requirements, modelName, onOpen, speci
       : null);
   }, [onProjectTargetChange, projectId, projects, session]);
 
+  useEffect(() => {
+    if (!session) return;
+    void api("/api/account/plan").then((payload) => {
+      const plan = payload.plan;
+      const usage = payload.usage;
+      setPlanSummary({
+        name: plan.name,
+        usageLabel: `${usage.projects}/${plan.maxProjects} projects · ${usage.monthlyValidationRuns}/${plan.monthlyValidationRuns} runs this month`
+      });
+    }).catch(() => setPlanSummary(null));
+  }, [api, session, projects.length, validations.length]);
+
+  const onboardingCompleted: Partial<Record<OnboardingStepId, boolean>> = {
+    project: projects.length > 0,
+    model: model.rooms.length > 0 || model.doors.length > 0,
+    specification: requirements.length > 0 || specifications.length > 0,
+    mapping: specifications.length > 0,
+    validate: validations.length > 0,
+    findings: Boolean(reportSnapshot) || validations.length > 0,
+    review: reportReviews.length > 0,
+    export: exportedAudit
+  };
+
   async function run(action: () => Promise<void>) {
     setBusy(true); setMessage("");
     try { await action(); } catch (error) { setMessage(error instanceof Error ? error.message : "The request failed."); }
     finally { setBusy(false); }
+  }
+
+  async function loadDemoProject() {
+    await run(async () => {
+      const payload = await api("/api/projects/demo", { method: "POST" });
+      await loadProjects();
+      setProjectId(payload.project.id);
+      await Promise.all([loadValidations(payload.project.id), loadSpecifications(payload.project.id)]);
+      setMessage(payload.replayed
+        ? "Demo project already exists — opened it."
+        : "Demo project ready: two specification revisions, baseline + candidate runs, and one waived finding.");
+    });
   }
 
   if (!session || authMode === "recovery") return (
@@ -223,13 +264,32 @@ export function ProjectWorkspace({ model, requirements, modelName, onOpen, speci
         anchor.download = `audit-bundle-${reportSnapshot.id}.zip`;
         anchor.click();
         URL.revokeObjectURL(href);
+        setExportedAudit(true);
       }}
       onClose={() => setReportSnapshot(null)}
     />}
     <Card className="shadow-md">
-      <CardHeader className="pb-3 text-left"><div className="flex items-center justify-between"><div><CardTitle className="text-sm">Project workspace</CardTitle><CardDescription className="text-xs">Signed in as {session.email}</CardDescription></div><Button variant="outline" size="sm" onClick={() => { clearBrowserSession(); setSession(null); setProjects([]); }}><LogOut className="mr-1.5 h-3.5 w-3.5" /> Sign out</Button></div></CardHeader>
+      <CardHeader className="pb-3 text-left"><div className="flex items-center justify-between"><div><CardTitle className="text-sm">Project workspace</CardTitle><CardDescription className="text-xs">Signed in as {session.email}{planSummary ? ` · ${planSummary.name} · ${planSummary.usageLabel}` : ""}</CardDescription></div><Button variant="outline" size="sm" onClick={() => { clearBrowserSession(); setSession(null); setProjects([]); }}><LogOut className="mr-1.5 h-3.5 w-3.5" /> Sign out</Button></div></CardHeader>
       <CardContent className="space-y-3">
+        <OnboardingChecklist
+          visible={!onboardingDismissed}
+          completed={onboardingCompleted}
+          busy={busy}
+          onLoadDemo={() => void loadDemoProject()}
+          onDismiss={() => setOnboardingDismissed(true)}
+        />
         {invitations.length > 0 && <div className="space-y-2 rounded-lg border border-sky-200 bg-sky-50 p-3 text-left dark:border-sky-900 dark:bg-sky-950/30"><p className="text-xs font-semibold">Project invitations</p>{invitations.map((invitation) => <div key={invitation.id} className="flex items-center justify-between gap-2 text-xs"><span>{invitation.projects?.name ?? "Shared project"} · {invitation.role}</span><Button size="sm" disabled={busy} onClick={() => void run(async () => { const payload = await api("/api/invitations", { method: "POST", body: JSON.stringify({ invitationId: invitation.id }) }); await Promise.all([loadInvitations(), loadProjects()]); setProjectId(payload.projectId); setMessage("Invitation accepted."); })}>Accept</Button></div>)}</div>}
+        {projects.length === 0 && (
+          <EmptyState
+            title="No projects yet"
+            what="Create a project to store models, specifications, validation runs and review decisions together."
+            format="Name only — you can invite members later."
+            example={`“${DEMO_PROJECT_NAME}” or your real project name`}
+            nextStep="Create a blank project, or load the guided demo with mixed findings and two revisions."
+            actionLabel="Load demo project"
+            onAction={() => void loadDemoProject()}
+          />
+        )}
         <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
           <input aria-label="New project name" value={newProjectName} onChange={(event) => setNewProjectName(event.target.value)} placeholder="New project name" className="h-9 rounded-md border bg-transparent px-3 text-xs" />
           <Button variant="outline" size="sm" disabled={busy || !newProjectName.trim()} onClick={() => void run(async () => { const payload = await api("/api/projects", { method: "POST", body: JSON.stringify({ name: newProjectName }) }); setNewProjectName(""); await loadProjects(); setProjectId(payload.project.id); })}>Create project</Button>
@@ -369,7 +429,18 @@ export function ProjectWorkspace({ model, requirements, modelName, onOpen, speci
         )}
 
         {validations.length >= 2 && <div className="flex items-center justify-between rounded-lg bg-slate-50 p-2 dark:bg-slate-900/60"><p className="text-[11px] text-slate-500">Select exactly two runs below for a free-form compare, or use Compare to baseline on a candidate.</p><Button variant="outline" size="sm" disabled={busy || comparisonIds.length !== 2} onClick={() => void run(async () => { setRegressionReport(null); const snapshots = await Promise.all(comparisonIds.map(async (id) => (await api(`/api/projects/${projectId}/validations/${id}`)).validation as ValidationSnapshot)); snapshots.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()); setComparison(compareValidationSnapshots(snapshots[0], snapshots[1])); })}><GitCompareArrows className="mr-1.5 h-3.5 w-3.5" /> Compare runs</Button></div>}
-        <div className="space-y-1.5">{validations.length === 0 ? <p className="text-xs text-slate-500">No saved validations in this project.</p> : validations.map((validation) => {
+        <div className="space-y-1.5">{validations.length === 0 ? (
+          <EmptyState
+            title="No saved validations in this project"
+            what="Save a validation run to freeze the model, requirements, results and metrics for review and export."
+            format="Uses the model and requirements currently open in the workspace."
+            example="Save validation after uploading riverside-office.ifc and loading revision A."
+            nextStep={specifications.length === 0
+              ? "Save a specification revision first, then run Save validation."
+              : "Click Save validation, then open Report to review findings."}
+            error={message && /validation|plan allows/i.test(message) ? message : undefined}
+          />
+        ) : validations.map((validation) => {
           const isBaseline = projects.find((project) => project.id === projectId)?.baseline_validation_id === validation.id;
           const isOwner = projects.find((project) => project.id === projectId)?.access_role === "owner";
           return (

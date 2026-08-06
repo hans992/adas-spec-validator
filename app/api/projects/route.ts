@@ -1,3 +1,4 @@
+import { assertCanCreateProject, ensureAccountPlan } from "@/billing/planLimits";
 import { createProjectSchema } from "@/persistence/schemas";
 import {
   authenticatedUserId,
@@ -32,6 +33,8 @@ export async function POST(request: Request) {
   try {
     const token = bearerToken(request);
     const ownerId = await authenticatedUserId(token);
+    await ensureAccountPlan(ownerId);
+    await assertCanCreateProject(token, ownerId);
     const input = createProjectSchema.parse(await request.json());
     const projects = await supabaseRequest<unknown[]>(token, "projects", {
       method: "POST",

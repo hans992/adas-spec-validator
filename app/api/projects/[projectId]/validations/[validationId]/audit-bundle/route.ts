@@ -4,6 +4,7 @@ import {
   normalizeReviewDecision
 } from "@/domain/auditPackage";
 import type { ValidationSnapshot } from "@/domain/validationComparison";
+import { assertCanExportAudit, recordAuditExportUsage } from "@/billing/planLimits";
 import { authenticatedUserId, bearerToken, persistenceResponse, supabaseRequest } from "@/persistence/supabaseRest";
 
 export const runtime = "nodejs";
@@ -15,6 +16,7 @@ export async function GET(request: Request, context: Context) {
     const token = bearerToken(request);
     const actorId = await authenticatedUserId(token);
     const { projectId, validationId } = await context.params;
+    await assertCanExportAudit(token, actorId);
 
     const [projects, runs, reviews, history, evidence] = await Promise.all([
       supabaseRequest<Array<{
@@ -105,6 +107,8 @@ export async function GET(request: Request, context: Context) {
       evidence: evidence.map((row) => normalizeFindingEvidence(row as never)),
       generatedBy: actorId
     });
+
+    await recordAuditExportUsage(actorId);
 
     return new Response(Buffer.from(zip), {
       headers: {

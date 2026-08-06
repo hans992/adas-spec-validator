@@ -1,5 +1,11 @@
 import { createHash } from "node:crypto";
 
+import {
+  assertCanRunValidation,
+  assertFileWithinPlan,
+  recordStorageUsage,
+  recordValidationRunUsage
+} from "@/billing/planLimits";
 import { createRequestLog, metricEvent } from "@/observability/logger";
 import {
   authenticatedUserId,
@@ -48,6 +54,8 @@ export async function POST(request: Request, context: Context) {
       return rateLimitedResponse(rateLimit, "Too many job submissions for this project. Please retry later.");
     }
 
+    await assertCanRunValidation(token, userId);
+
     const form = await request.formData();
     const file = form.get("file");
     const specificationId = String(form.get("specificationId") ?? "");
@@ -59,6 +67,8 @@ export async function POST(request: Request, context: Context) {
     if (file.size === 0 || file.size > maxBytes) {
       return Response.json({ error: "Model must be non-empty and no larger than 20 MB." }, { status: 413 });
     }
+
+    await assertFileWithinPlan(token, userId, file.size);
 
     const bytes = new Uint8Array(await file.arrayBuffer());
     const kind = file.name.toLowerCase().endsWith(".json") ? "model_json" as const : "ifc" as const;
@@ -106,6 +116,8 @@ export async function POST(request: Request, context: Context) {
         specification_package_id: specificationId
       })
     });
+    await recordStorageUsage(userId, bytes.byteLength);
+    await recordValidationRunUsage(userId);
     const job = rows[0] as Record<string, unknown>;
     metricEvent("job_enqueued", {
       requestId: log.requestId,

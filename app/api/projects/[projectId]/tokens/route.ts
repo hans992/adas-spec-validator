@@ -1,3 +1,4 @@
+import { assertCanUseApi } from "@/billing/planLimits";
 import { createProjectApiToken, PROJECT_API_SCOPES } from "@/persistence/projectApiAuth";
 import { createProjectApiTokenSchema } from "@/persistence/schemas";
 import {
@@ -51,6 +52,7 @@ export async function POST(request: Request, context: Context) {
     const sessionToken = bearerToken(request);
     const userId = await authenticatedUserId(sessionToken);
     const { projectId } = await context.params;
+    await assertCanUseApi(sessionToken, userId);
     const input = createProjectApiTokenSchema.parse(await request.json());
     const ownership = await requireOwner(sessionToken, projectId, userId);
     if (!ownership.ok) return ownership.error;

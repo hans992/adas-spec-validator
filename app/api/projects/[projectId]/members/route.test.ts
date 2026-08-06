@@ -16,10 +16,14 @@ describe("project collaboration API", () => {
   });
 
   it("normalizes an invitation email and fixes expiry server-side", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json({ id: "owner-1" })).mockResolvedValueOnce(Response.json([{ id: "invite-1" }]));
+    vi.stubEnv("FORCE_ACCOUNT_PLAN", "professional");
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({ id: "owner-1" }))
+      .mockResolvedValueOnce(Response.json([])) // members for seat count
+      .mockResolvedValueOnce(Response.json([{ id: "invite-1" }]));
     const response = await POST(new Request("http://localhost/members", { method: "POST", headers: auth, body: JSON.stringify({ email: " USER@Example.com ", role: "viewer" }) }), context);
     expect(response.status).toBe(201);
-    const body = JSON.parse(String((fetchMock.mock.calls[1][1] as RequestInit).body));
+    const body = JSON.parse(String((fetchMock.mock.calls[2][1] as RequestInit).body));
     expect(body).toMatchObject({ email: "user@example.com", role: "viewer", owner_id: "owner-1", status: "pending" });
     expect(new Date(body.expires_at).getTime()).toBeGreaterThan(Date.now() + 6 * 86400000);
   });

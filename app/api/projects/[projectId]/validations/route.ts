@@ -1,3 +1,4 @@
+import { assertCanRunValidation, recordValidationRunUsage } from "@/billing/planLimits";
 import { calculateComplianceMetrics } from "@/domain/complianceMetrics";
 import { validateWithDeterministicRules } from "@/domain/validationPipeline";
 import { saveValidationSchema } from "@/persistence/schemas";
@@ -33,6 +34,7 @@ export async function POST(request: Request, context: Context) {
     const token = bearerToken(request);
     const actorId = await authenticatedUserId(token);
     const { projectId } = await context.params;
+    await assertCanRunValidation(token, actorId);
     const input = saveValidationSchema.parse(await request.json());
     const projects = await supabaseRequest<Array<{ owner_id: string }>>(token,
       `projects?id=eq.${encodeURIComponent(projectId)}&select=owner_id&limit=1`
@@ -55,6 +57,7 @@ export async function POST(request: Request, context: Context) {
         metrics
       })
     });
+    await recordValidationRunUsage(actorId);
     return Response.json({ validation: rows[0] }, { status: 201 });
   } catch (error) {
     if (error instanceof SyntaxError || (typeof error === "object" && error !== null && "issues" in error)) {

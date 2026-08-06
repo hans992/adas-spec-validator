@@ -24,6 +24,7 @@ import {
 import Link from "next/link";
 
 import { AecChatPanel } from "@/components/AecChatPanel";
+import { EmptyState } from "@/components/EmptyState";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { BimFloorPlan } from "@/components/BimFloorPlan";
 import { BimInspector } from "@/components/BimInspector";
@@ -806,7 +807,18 @@ ${res.evidence
                     {modelFilename && (
                       <p className="text-[10px] font-mono text-indigo-500 mt-3 truncate font-semibold">Active: {modelFilename}</p>
                     )}
-                    {modelError && <p className="text-[10px] text-rose-500 mt-2 font-semibold">{modelError}</p>}
+                    {modelError && (
+                      <div className="mt-2" onClick={(event) => event.stopPropagation()}>
+                        <EmptyState
+                          title="Model upload failed"
+                          what="Replace the active BIM package with an IFC extract or normalized model JSON."
+                          format=".ifc or .json (normalized levels / rooms / doors)"
+                          example="riverside-office.ifc or a JSON export from the C# extractor"
+                          nextStep="Fix the file and drop it again, or reset to the sample model."
+                          error={modelError}
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div
@@ -828,7 +840,18 @@ ${res.evidence
                     {requirementsFilename && (
                       <p className="text-[10px] font-mono text-indigo-500 mt-3 truncate font-semibold">Active: {requirementsFilename}</p>
                     )}
-                    {requirementsError && <p className="text-[10px] text-rose-500 mt-2 font-semibold">{requirementsError}</p>}
+                    {requirementsError && (
+                      <div className="mt-2" onClick={(event) => event.stopPropagation()}>
+                        <EmptyState
+                          title="Specification upload failed"
+                          what="Import requirements as a versioned package, then map rule types before saving a revision."
+                          format=".json · .csv · .xlsx · .docx · text-based .pdf"
+                          example="aec-building-requirements.xlsx with id, title, type, severity columns"
+                          nextStep="Correct the file or open the reviewed import wizard again."
+                          error={requirementsError}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
                 {ifcDiagnostics && (

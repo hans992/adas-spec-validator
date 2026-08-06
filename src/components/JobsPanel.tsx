@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, RotateCcw, Upload, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/EmptyState";
 
 export type JobSummary = {
   id: string;
@@ -155,7 +156,16 @@ export function JobsPanel({
       }} />
     </div>}
     {jobs.length === 0
-      ? <p className="text-[10px] text-slate-500">No background jobs yet.</p>
+      ? <EmptyState
+          title="No background jobs yet"
+          what="Enqueue a large IFC or model JSON for step-based import and validate."
+          format="IFC or JSON · multipart upload with a saved specification revision."
+          example="riverside-office.ifc against revision A"
+          nextStep={specifications.length === 0
+            ? "Save a specification revision in the project library first."
+            : "Choose a specification and upload the model as a job."}
+          error={error || undefined}
+        />
       : <div className="space-y-2">
         {jobs.slice(0, 8).map((job) => <div key={job.id} className="rounded border px-2 py-1.5">
           <div className="flex items-center justify-between gap-2 text-[11px]">
