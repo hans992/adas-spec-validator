@@ -34,6 +34,7 @@ This is not a generic BIM chatbot and the LLM is never the source of truth. Rule
 - Production hardening: brute-force-throttled auth proxy, magic-byte upload guards, shared Redis rate limits with `Retry-After`, per-project validation job slots, soft delete + retention purge, account export, RLS test matrix, and redacted structured logging (see `SECURITY.md`)
 - Background job system for large imports: step-based `validation_jobs` (queued → parsing → validating → persisting) with idempotent enqueue, safe-error-only retries, cancellation, timeouts, lease-based crash recovery, dead-letter marking, and temp payload cleanup; the UI shows per-phase progress that survives page refreshes
 - Product finishing: guided first-project checklist, seeded Riverside Office demo (passes / failures / unknown / waived / two revisions), empty and error states with next-step guidance, marketing page aligned to the real workflow, and plan limits that the API enforces
+- Beta QA gate: Chromium E2E, Firefox/WebKit/mobile smoke, axe accessibility scans, upload/load smoke, dependency audit, performance unit tests, RLS matrix runner, and published docs (privacy, terms, security, AI transparency, formats, limitations, retention, subprocessors, user + API/CLI)
 
 ## Architecture
 
@@ -308,6 +309,25 @@ Add the application's production origin and local development origin to the Supa
 New accounts default to **Starter**. Plan caps (projects, members, monthly validation runs, storage, max file size, audit exports, API/CI access, retention) are enforced on mutating API routes and return HTTP `402` with a concrete message when exceeded. Assign `professional` or `enterprise` in `account_plans`, or set `FORCE_ACCOUNT_PLAN` locally.
 
 `POST /api/projects/demo` creates the Riverside Office demo once per user: realistic office model, architectural specification revisions A and B, baseline + candidate validation runs, mixed pass/fail/unknown outcomes, and one waived door-width finding. The workspace checklist and empty states guide the first project from upload through audit export.
+
+## Beta QA and documentation
+
+See `docs/BETA_RELEASE.md` for the full release gate. Published product docs:
+
+| Route | Content |
+|---|---|
+| `/docs` | Documentation hub |
+| `/docs/user-guide` | First-project checklist |
+| `/docs/api-cli` | Machine API and CLI |
+| `/docs/supported-formats` | IFC, JSON, XLSX, DOCX, PDF |
+| `/docs/validation-limitations` | Engine scope and non-claims |
+| `/docs/ai-transparency` | Deterministic vs AI explanations |
+| `/docs/data-retention` | Soft delete and purge windows |
+| `/docs/subprocessors` | EU-oriented processor list |
+| `/legal/privacy` · `/legal/terms` | Privacy and beta terms |
+| `/security` | Renders `SECURITY.md` |
+
+QA scripts: `npm test`, `npm run test:perf`, `npm run audit:deps`, `npm run test:e2e:chromium`, `npm run test:e2e:smoke`, `npm run test:rls`.
 
 ## Background jobs for large imports
 

@@ -82,6 +82,7 @@ export function MarketingLanding() {
             <a href="#workflow">Workflow</a>
             <a href="#product">Product</a>
             <a href="#pricing">Pricing</a>
+            <Link href="/docs">Docs</Link>
           </nav>
           <div className="hidden items-center gap-3 md:flex">
             <Link href="/workspace" className="aec-button-secondary">Open workspace</Link>
@@ -95,6 +96,7 @@ export function MarketingLanding() {
           <div className="grid gap-4 text-sm">
             <a href="#workflow" onClick={() => setMenuOpen(false)}>Workflow</a>
             <a href="#pricing" onClick={() => setMenuOpen(false)}>Pricing</a>
+            <Link href="/docs" onClick={() => setMenuOpen(false)}>Docs</Link>
             <Link href="/workspace" className="aec-button-primary mt-2 justify-center">Open workspace</Link>
           </div>
         </nav>}
@@ -258,9 +260,13 @@ export function MarketingLanding() {
             <p className="text-sm font-medium">AEC Spec Validator</p>
             <p className="mt-1 text-xs text-slate-400">Import · validate · review · regress · export.</p>
           </div>
-          <div className="flex gap-5 text-xs text-slate-300">
+          <div className="flex flex-wrap gap-5 text-xs text-slate-300">
             <a href="#workflow">Workflow</a>
             <a href="#pricing">Pricing</a>
+            <Link href="/docs">Docs</Link>
+            <Link href="/legal/privacy">Privacy</Link>
+            <Link href="/legal/terms">Terms</Link>
+            <Link href="/security">Security</Link>
             <Link href="/workspace">Workspace</Link>
           </div>
         </div>

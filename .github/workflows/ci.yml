@@ -17,6 +17,14 @@ jobs:
       - run: npm ci
       - run: node bin/aec-validator.mjs --help
       - run: npm test
+      - run: npm run test:perf
+      - run: npm run audit:deps
       - run: npm run build
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
+      - run: npm run test:e2e:chromium
+      - name: Firefox / WebKit / mobile smoke
+        run: |
+          npx playwright install --with-deps firefox webkit
+          npm run test:e2e:smoke
+      - name: RLS matrix instructions
+        run: npm run test:rls

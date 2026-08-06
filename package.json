@@ -9,9 +9,14 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test:e2e": "playwright test",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:chromium": "playwright test --project=chromium",
+    "test:e2e:smoke": "playwright test --project=firefox --project=webkit --project=mobile-chrome",
+    "test:perf": "vitest run src/qa/betaPerformance.test.ts",
+    "audit:deps": "npm audit --audit-level=high",
+    "test:rls": "node ./scripts/run-rls-matrix.mjs",
     "aec-validator": "node ./bin/aec-validator.mjs"
   },
   "dependencies": {
@@ -36,6 +41,7 @@
     "zod": "^3.24.3"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.10.1",
     "@playwright/test": "1.62.1",
     "@types/jszip": "^3.4.0",
     "@types/node": "^22.15.3",

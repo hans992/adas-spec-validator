@@ -829,7 +829,7 @@ ${res.evidence
                         : "border-slate-200 hover:border-indigo-400 hover:bg-slate-50 dark:border-slate-800 dark:hover:border-slate-700"
                     }`}
                   >
-                    <input {...requirementsDropzone.getInputProps()} />
+                    <input {...requirementsDropzone.getInputProps({ "aria-label": "Upload specification package" })} />
                     <div className="flex items-start gap-3">
                       <FileJson className="mt-0.5 h-4 w-4 text-slate-500 flex-shrink-0" />
                       <div className="space-y-1">
